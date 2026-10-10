@@ -1,0 +1,43 @@
+@model List<ServiceChangeRequest>
+@{ ViewData["Title"] = "خدمات النشاط"; Layout = "_AdminLayout";
+   var store = ViewBag.Store as StoreProfile ?? new StoreProfile(); }
+<div class="admin-heading"><div><span class="eyebrow">بوابة Cypher / @store.Name</span><h1>خدمات النشاط</h1><p>اطلب إضافة خدمة أو إزالتها. يراجع فريق Cypher الطلب قبل تغيير الخدمات.</p></div></div>
+<div class="service-grid">
+    @foreach (var service in CypherCommerce.Services.BusinessServices.All)
+    {
+        var enabled = CypherCommerce.Services.BusinessServices.IsEnabled(store, service.Code);
+        var pending = Model.FirstOrDefault(x => x.ServiceCode == service.Code && x.Status == "Pending");
+        <section class="panel service-card">
+            <div class="panel-head"><h2>@service.Label</h2><span class="badge">@(enabled ? "مفعلة" : "غير مفعلة")</span></div>
+            @if (service.Code == CypherCommerce.Services.BusinessServices.WhatsApp && enabled)
+            { <p class="muted">تفعيل الخدمة لا يعني اكتمال ربط رقم واتساب. راجع صفحة بيانات النشاط للتحقق من الاتصال.</p> }
+            @if (pending is not null)
+            { <p class="service-pending">طلب @(pending.RequestedAction == "Add" ? "إضافة" : "إزالة") قيد المراجعة منذ @pending.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy").</p> }
+            else
+            {
+                @if (service.Code == CypherCommerce.Services.BusinessServices.WebsiteAssistant && !store.StorefrontEnabled)
+                { <p class="muted">اطلب تفعيل المتجر الإلكتروني أولاً قبل طلب مساعد الموقع.</p> }
+                <form method="post" action="/admin/services/request" class="service-request-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="ServiceCode" value="@service.Code" />
+                    <input type="hidden" name="RequestedAction" value="@(enabled ? "Remove" : "Add")" />
+                    <label>ملاحظة للفريق (اختياري)<textarea name="OwnerNote" maxlength="500" rows="2"></textarea></label>
+                    @if (service.Code == CypherCommerce.Services.BusinessServices.Storefront && enabled && store.WebsiteAssistantEnabled)
+                    { <small>إزالة المتجر ستوقف مساعد الموقع أيضاً إذا وافق الفريق على الطلب.</small> }
+                    <button class="button @(enabled ? "light" : "dark")" type="submit" disabled="@(service.Code == CypherCommerce.Services.BusinessServices.WebsiteAssistant && !store.StorefrontEnabled)">@(enabled ? "طلب إزالة الخدمة" : "طلب إضافة الخدمة")</button>
+                </form>
+            }
+        </section>
+    }
+</div>
+<section class="panel service-history">
+    <div class="panel-head"><h2>سجل الطلبات</h2></div>
+    @if (Model.Count == 0) { <p class="muted">لم ترسل طلبات تغيير خدمات بعد.</p> }
+    else
+    {
+        <div class="table-scroll"><table><thead><tr><th>الخدمة</th><th>الطلب</th><th>الحالة</th><th>التاريخ</th><th>رد الفريق</th></tr></thead><tbody>
+        @foreach (var request in Model)
+        { <tr><td>@CypherCommerce.Services.BusinessServices.Label(request.ServiceCode)</td><td>@(request.RequestedAction == "Add" ? "إضافة" : "إزالة")</td><td><span class="badge">@(request.Status == "Pending" ? "قيد المراجعة" : request.Status == "Approved" ? "تمت الموافقة" : "مرفوض")</span></td><td>@request.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td><td>@request.OperatorNote</td></tr> }
+        </tbody></table></div>
+    }
+</section>

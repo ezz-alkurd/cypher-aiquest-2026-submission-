@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>cypher-commerce-hosted-local-2026</UserSecretsId>
+    <AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.2" />
+    <EmbeddedResource Include="Database\001_categories.sql" />
+    <EmbeddedResource Include="Database\002_access_requests.sql" />
+    <EmbeddedResource Include="Database\003_business_scope.sql" />
+    <EmbeddedResource Include="Database\004_platform_operators.sql" />
+    <EmbeddedResource Include="Database\007_service_change_requests.sql" />
+  </ItemGroup>
+
+</Project>

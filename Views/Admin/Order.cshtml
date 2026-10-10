@@ -1,0 +1,37 @@
+@model ShopOrder
+@{ ViewData["Title"] = "تفاصيل الطلب"; Layout = "_AdminLayout"; var products = ViewBag.Products as List<Product> ?? new(); }
+<div class="admin-heading"><div><a class="breadcrumb" href="/admin/orders">← الطلبات</a><h1>الطلب @Model.OrderNumber</h1><p>@Model.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @Model.SourceChannel</p></div><span class="badge large">@OrderStatusDisplay.Label(Model.Status)</span></div>
+<div class="admin-grid">
+    <section class="panel">
+        <div class="panel-head"><h2>المنتجات والتكلفة</h2></div>
+        @if (Model.Status == OrderStatus.NeedsReview)
+        {
+            <form method="post" action="/admin/orders/@Model.Id/confirm-chat">
+                @Html.AntiForgeryToken()
+                @foreach (var line in Model.Lines)
+                {
+                    <div class="order-line"><div><strong>@line.ProductName</strong><small>العميل قال: @line.RawCustomerText</small>@if (!string.IsNullOrWhiteSpace(line.AiNote)) { <small>ملاحظة المساعد: @line.AiNote</small> }</div><span>× @line.Quantity</span>
+                        @if (line.IsUnresolved) { <select name="matches[@line.Id]" required><option value="">اربط بمنتج</option>@foreach (var product in products) { <option value="@product.Id">@product.Name (@product.StockQuantity متاح)</option> }</select> }
+                        else { <strong>@line.LineTotal.ToString("0.00") د.أ</strong> }
+                    </div>
+                }
+                <div class="order-costs"><div><span>مجموع المنتجات المتوقع</span><strong>@Model.Subtotal.ToString("0.00") د.أ</strong></div><div><span>تكلفة التوصيل</span><strong>@Model.DeliveryFee.ToString("0.00") د.أ</strong></div><div class="summary-total"><span>المجموع المتوقع</span><strong>@Model.Total.ToString("0.00") د.أ</strong></div></div>
+                <p class="muted">قد يتغير مجموع المنتجات بعد ربط الأصناف غير الواضحة.</p>
+                <button class="button dark" type="submit">تأكيد الطلب وحجز المخزون</button>
+            </form>
+        }
+        else
+        {
+            @foreach (var line in Model.Lines) { <div class="order-line"><strong>@line.ProductName</strong><span>× @line.Quantity</span><strong>@line.LineTotal.ToString("0.00") د.أ</strong></div> }
+            <div class="order-costs"><div><span>مجموع المنتجات</span><strong>@Model.Subtotal.ToString("0.00") د.أ</strong></div><div><span>تكلفة التوصيل</span><strong>@Model.DeliveryFee.ToString("0.00") د.أ</strong></div><div class="summary-total"><span>المجموع</span><strong>@Model.Total.ToString("0.00") د.أ</strong></div></div>
+        }
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>بيانات العميل</h2></div>
+        <div class="detail-list"><div><span>الاسم</span><strong>@Model.CustomerName</strong></div><div><span>الهاتف</span><strong>@Model.Phone</strong></div><div><span>العنوان</span><strong>@Model.DeliveryAddress</strong></div><div><span>ملاحظات</span><strong>@Model.CustomerNote</strong></div></div>
+        @if (Model.Status is not (OrderStatus.Completed or OrderStatus.Cancelled or OrderStatus.NeedsReview))
+        { <div class="panel-head"><h2>تحديث الحالة</h2></div><form method="post" action="/admin/orders/@Model.Id/status" class="status-form">@Html.AntiForgeryToken()<select name="status"><option value="Confirmed">مؤكد</option><option value="Preparing">قيد التجهيز</option><option value="Ready">جاهز</option><option value="Completed">مكتمل</option><option value="Cancelled">إلغاء الطلب</option></select><button class="button dark" type="submit">حفظ الحالة</button></form> }
+        @if (Model.Status == OrderStatus.NeedsReview)
+        { <form method="post" action="/admin/orders/@Model.Id/status" class="status-form">@Html.AntiForgeryToken()<input type="hidden" name="status" value="Cancelled" /><button type="submit" class="text-button">إلغاء المسودة</button></form> }
+    </section>
+</div>

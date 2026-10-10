@@ -1,0 +1,23 @@
+@model List<AccessRequest>
+@{ ViewData["Title"] = "طلبات الانضمام"; Layout = "_PlatformLayout"; }
+<section class="shell platform-requests">
+    <div class="admin-heading"><div><span class="eyebrow">فريق Cypher</span><h1>طلبات الانضمام</h1><p>التواصل مع صاحب النشاط وتحديد الخدمات قبل إنشاء الحساب.</p></div><div class="heading-actions"><a class="button light" href="/platform/operator/service-requests">طلبات تغيير الخدمات (@ViewBag.PendingServiceChanges)</a><a class="button light" href="/platform/operator/businesses">الأنشطة المفعلة</a></div></div>
+    @if (Model.Count == 0) { <div class="empty-state"><h2>لا توجد طلبات بعد</h2><p>ستظهر طلبات الانضمام هنا عند وصولها.</p></div> }
+    else
+    {
+        <div class="platform-request-grid">
+        @foreach (var item in Model)
+        {
+            <article class="panel"><div class="panel-head"><h2>@item.BusinessName</h2><span class="badge">@(item.Status == "Provisioned" ? "تم التفعيل" : item.Status == "Contacted" ? "تم التواصل" : "جديد")</span></div>
+                <p><strong>المسؤول:</strong> @item.ContactName</p><p><strong>الهاتف:</strong> <a href="tel:@item.Phone">@item.Phone</a></p>
+                @if (!string.IsNullOrWhiteSpace(item.Email)) { <p><strong>البريد:</strong> @item.Email</p> }
+                <p><strong>الخدمات:</strong> @item.RequestedServices</p>
+                @if (!string.IsNullOrWhiteSpace(item.Notes)) { <p><strong>ملاحظات:</strong> @item.Notes</p> }
+                <small>@item.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                @if (item.Status == "New") { <form method="post" action="/platform/operator/requests/@item.Id/contacted">@Html.AntiForgeryToken()<button class="button light" type="submit">تم التواصل</button></form> }
+                else if (item.Status == "Contacted") { <a class="button dark" href="/platform/operator/requests/@item.Id/provision">إنشاء الحساب والخدمات</a> }
+            </article>
+        }
+        </div>
+    }
+</section>

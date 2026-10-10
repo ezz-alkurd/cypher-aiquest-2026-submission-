@@ -1,0 +1,287 @@
+{
+  "name": "Cypher TOOL - Manage Cart",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "storeId",
+              "type": "number"
+            },
+            {
+              "name": "sessionId"
+            },
+            {
+              "name": "conversationId"
+            },
+            {
+              "name": "leaseToken"
+            },
+            {
+              "name": "messageId"
+            },
+            {
+              "name": "action"
+            },
+            {
+              "name": "productId",
+              "type": "number"
+            },
+            {
+              "name": "quantity",
+              "type": "number"
+            },
+            {
+              "name": "itemIndex",
+              "type": "number"
+            },
+            {
+              "name": "customerName"
+            },
+            {
+              "name": "deliveryAddress"
+            },
+            {
+              "name": "customerNote"
+            }
+          ]
+        }
+      },
+      "id": "db3bbe33-bdfa-4377-9831-d1912b037f86",
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'cart.read', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Input\").first().json)] }}"
+        }
+      },
+      "id": "835a42b5-dbfc-40de-a7a2-bc47cca6d263",
+      "name": "SQL Read cart and live products",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        1664,
+        1104
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "cart.read: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction manageCart(input, result) {\n  verifyScope(result, input);\n  insist(result.leaseToken === input.leaseToken, 'lease_scope_mismatch');\n  insist(result.conversationId === input.conversationId, 'conversation_scope_mismatch');\n  insist(result.cart && Array.isArray(result.cart.items) && Array.isArray(result.products), 'cart_snapshot_missing');\n  const cart = JSON.parse(JSON.stringify(result.cart));\n  insist(cart.status !== 'submitted', 'submitted_cart_requires_new_conversation');\n  const actions = ['get', 'add', 'set_quantity', 'increment', 'decrement', 'remove', 'clear', 'update_customer'];\n  insist(actions.includes(input.action), 'invalid_cart_action');\n  const products = new Map(result.products.map(p => {\n    insist(p.storeId === input.storeId, 'cross_store_product');\n    return [integer(p.productId, 1), p];\n  }));\n  cart.items.forEach(item => {\n    integer(item.productId, 1); integer(item.quantity, 1, 100000); integer(item.priceCents);\n  });\n  const productId = Number(input.productId || 0);\n  const itemIndex = integer(input.itemIndex || 0, 0, 1000);\n  const target = itemIndex > 0 ? cart.items[itemIndex - 1] : cart.items.find(p => p.productId === productId);\n  const quantityActions = ['add', 'set_quantity', 'increment', 'decrement'];\n  const quantity = quantityActions.includes(input.action) ? integer(input.quantity, 1, 100000) : 0;\n  if (input.action === 'clear') cart.items = [];\n  if (input.action === 'update_customer') {\n    if (text(input.customerName, 150)) cart.customerName = text(input.customerName, 150);\n    if (text(input.deliveryAddress, 500)) cart.deliveryAddress = text(input.deliveryAddress, 500);\n    if (typeof input.customerNote === 'string' && input.customerNote !== '__UNCHANGED__') cart.customerNote = text(input.customerNote, 1000);\n  }\n  if (input.action === 'remove') {\n    insist(target, 'cart_item_not_found');\n    cart.items = cart.items.filter(p => p.productId !== target.productId);\n  }\n  if (quantityActions.includes(input.action)) {\n    const id = input.action === 'add' ? integer(productId, 1) : target?.productId;\n    insist(id, 'cart_item_not_found');\n    const product = products.get(id);\n    insist(product && product.isActive === true, 'product_not_available');\n    const current = cart.items.find(p => p.productId === id);\n    let next = quantity;\n    if (input.action === 'add' || input.action === 'increment') next = (current?.quantity || 0) + quantity;\n    if (input.action === 'decrement') next = (current?.quantity || 0) - quantity;\n    insist(next <= integer(product.stockQuantity) && next <= 100000, 'insufficient_stock');\n    const position = cart.items.findIndex(p => p.productId === id);\n    if (next <= 0) cart.items = cart.items.filter(p => p.productId !== id);\n    else {\n      const line = {productId: id, name: text(product.name, 200), quantity: next, priceCents: integer(product.priceCents)};\n      if (position >= 0) cart.items[position] = line;\n      else cart.items.push(line);\n    }\n  }\n  // Refresh every remaining line against current catalog prices and availability.\n  for (const item of cart.items) {\n    const p = products.get(item.productId);\n    insist(p && p.isActive === true, 'product_not_available');\n    insist(item.quantity <= integer(p.stockQuantity), 'insufficient_stock');\n    item.priceCents = integer(p.priceCents); item.name = text(p.name, 200);\n  }\n  cart.deliveryFeeCents = integer(result.deliveryFeeCents);\n  cart.status = cart.items.length ? 'building_order' : 'idle';\n  const expectedVersion = integer(result.cart.version);\n  const summary = cartSummary(cart);\n  return {storeId: input.storeId, sessionId: input.sessionId, conversationId: input.conversationId,\n    leaseToken: input.leaseToken, messageId: input.messageId, operationId: input.operationId, action: input.action, expectedVersion,\n    // SQL must persist this CAS result before success can be returned to the customer.\n    candidate: {...summary, version: expectedVersion + 1}};\n}\n\nfunction verifyScope(result, input) {\n  insist(result.storeId === input.storeId, 'store_scope_mismatch');\n  if (input.sessionId) insist(result.sessionId === input.sessionId, 'session_scope_mismatch');\n  return result;\n}\n\nfunction cartSummary(cart) {\n  const items = cart.items.map((p, index) => ({itemIndex: index + 1, productId: p.productId, name: p.name,\n    quantity: p.quantity, priceCents: p.priceCents, lineTotalCents: p.quantity * p.priceCents,\n    unitPrice: money(p.priceCents), lineTotal: money(p.quantity * p.priceCents)}));\n  const subtotalCents = items.reduce((sum, item) => sum + item.lineTotalCents, 0);\n  const deliveryFeeCents = items.length ? integer(cart.deliveryFeeCents) : 0;\n  const totalCents = subtotalCents + deliveryFeeCents;\n  integer(totalCents);\n  const missingFields = [];\n  if (!text(cart.customerName, 150)) missingFields.push('customerName');\n  if (!text(cart.deliveryAddress, 500)) missingFields.push('deliveryAddress');\n  return {...cart, items, subtotalCents, totalCents, deliveryFeeCents, subtotal: money(subtotalCents),\n    deliveryFee: money(deliveryFeeCents), total: money(totalCents), currency: 'JOD', missingFields};\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nreturn [{json:manageCart({...$(\"Input\").first().json,operationId:String($execution.id)},payload($input.all().map(i=>i.json)))}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "0a3d1f22-8764-4789-b0c6-0244d7af4309",
+      "name": "Validate cart action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.candidate !== undefined && $json.success !== false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6d950798-ab80-4f3e-b08f-21bed45554fa",
+      "name": "Candidate valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2224,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'cart.commit', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Validate cart action\").first().json)] }}"
+        }
+      },
+      "id": "d1069ab9-dbd9-4ab1-8116-4f52a386f336",
+      "name": "SQL Commit cart version",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        2512,
+        1024
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "cart.commit: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction committedCart(input, result) {\n  verifyScope(result, input);\n  insist(result.success === true && result.cart && result.cart.version === input.candidate.version, 'cart_commit_not_acknowledged');\n  insist(result.conversationId === input.conversationId && result.leaseToken === input.leaseToken, 'cart_commit_scope_mismatch');\n  const cart = cartSummary(result.cart);\n  const cartText = cart.items.length ? 'طلبك الحالي:\\n' + cart.items.map(p => `${p.itemIndex}. ${p.quantity} × ${p.name} — ${p.lineTotal} د.أ`).join('\\n') + `\\nالتوصيل: ${cart.deliveryFee} د.أ\\nالمجموع: ${cart.total} د.أ` : 'السلة فاضية حالياً.';\n  return {success: true, cart, cartText, missingFields: cart.missingFields};\n}\n\nfunction verifyScope(result, input) {\n  insist(result.storeId === input.storeId, 'store_scope_mismatch');\n  if (input.sessionId) insist(result.sessionId === input.sessionId, 'session_scope_mismatch');\n  return result;\n}\n\nfunction cartSummary(cart) {\n  const items = cart.items.map((p, index) => ({itemIndex: index + 1, productId: p.productId, name: p.name,\n    quantity: p.quantity, priceCents: p.priceCents, lineTotalCents: p.quantity * p.priceCents,\n    unitPrice: money(p.priceCents), lineTotal: money(p.quantity * p.priceCents)}));\n  const subtotalCents = items.reduce((sum, item) => sum + item.lineTotalCents, 0);\n  const deliveryFeeCents = items.length ? integer(cart.deliveryFeeCents) : 0;\n  const totalCents = subtotalCents + deliveryFeeCents;\n  integer(totalCents);\n  const missingFields = [];\n  if (!text(cart.customerName, 150)) missingFields.push('customerName');\n  if (!text(cart.deliveryAddress, 500)) missingFields.push('deliveryAddress');\n  return {...cart, items, subtotalCents, totalCents, deliveryFeeCents, subtotal: money(subtotalCents),\n    deliveryFee: money(deliveryFeeCents), total: money(totalCents), currency: 'JOD', missingFields};\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nreturn [{json:committedCart($(\"Validate cart action\").first().json,payload($input.all().map(i=>i.json)))}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "7c787637-462f-4606-a4de-06a6b0989bed",
+      "name": "Return saved cart",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2784,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nreturn [{json:{success:false,ok:false,code:'integration_unavailable'}}];"
+      },
+      "id": "4e8f7aaa-fda8-4eb1-af61-671740cdca25",
+      "name": "Integration failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nreturn [{json:$(\"Validate cart action\").first().json}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "755bb28c-2a4d-42a6-b982-c543483fc722",
+      "name": "Return cart rejection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        1216
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "SQL Read cart and live products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Read cart and live products": {
+      "main": [
+        [
+          {
+            "node": "Validate cart action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Integration failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate cart action": {
+      "main": [
+        [
+          {
+            "node": "Candidate valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidate valid": {
+      "main": [
+        [
+          {
+            "node": "SQL Commit cart version",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return cart rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Commit cart version": {
+      "main": [
+        [
+          {
+            "node": "Return saved cart",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Integration failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5e7952c5-8b9a-46bd-8c7c-2934d2ecd082",
+  "nodeGroups": [],
+  "id": "MCV0gGmcvSXurGIv",
+  "tags": []
+}

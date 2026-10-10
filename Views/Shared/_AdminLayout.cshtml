@@ -1,0 +1,40 @@
+@inject CypherCommerce.Services.CommerceService Commerce
+@{ var store = await Commerce.GetStoreAsync(); var brandName = store.Name; var path = Context.Request.Path.Value ?? ""; }
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · @brandName</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/refresh.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/cypher-theme.css" asp-append-version="true" />
+</head>
+<body class="admin-body">
+    <div class="admin-frame">
+        <aside class="sidebar">
+            <a class="brand" href="/admin"><span class="brand-mark"><img src="/images/cypher-logo.png" alt="" /></span><span>Cypher<small>@brandName · مساحة الإدارة</small></span></a>
+            <div class="sidebar-label">إدارة متجرك</div>
+            <nav aria-label="لوحة الإدارة">
+                <a class="@(path == "/admin" ? "active" : "")" href="/admin"><span class="nav-icon">⌂</span><span>نظرة عامة</span></a>
+                <a class="@(path.StartsWith("/admin/orders") ? "active" : "")" href="/admin/orders"><span class="nav-icon">▤</span><span>الطلبات</span></a>
+                <a class="@(path.StartsWith("/admin/products") ? "active" : "")" href="/admin/products"><span class="nav-icon">◫</span><span>المنتجات</span></a>
+                <a class="@(path.StartsWith("/admin/categories") || path.StartsWith("/admin/subcategories") ? "active" : "")" href="/admin/categories"><span class="nav-icon">▦</span><span>التصنيفات</span></a>
+                <a class="@(path.StartsWith("/admin/inventory") ? "active" : "")" href="/admin/inventory"><span class="nav-icon">↕</span><span>حركة المخزون</span></a>
+                <a class="@(path.StartsWith("/admin/settings") ? "active" : "")" href="/admin/settings"><span class="nav-icon">⚙</span><span>بيانات النشاط</span></a>
+                <a class="@(path.StartsWith("/admin/services") ? "active" : "")" href="/admin/services"><span class="nav-icon">◇</span><span>خدمات النشاط</span></a>
+            </nav>
+            <div class="sidebar-bottom">@if (store.StorefrontEnabled) { <a href="/s/@store.Slug" target="_blank">↗ زيارة المتجر</a> }<form method="post" action="/admin/logout">@Html.AntiForgeryToken()<button type="submit">تسجيل الخروج</button></form></div>
+        </aside>
+        <div class="admin-main">
+            <header class="admin-top"><span>بوابة Cypher <span class="top-separator">/</span> @ViewData["Title"]</span>@if (store.StorefrontEnabled) { <a href="/s/@store.Slug" target="_blank">عرض المتجر ↗</a> }</header>
+            <div class="admin-content">
+                @if (TempData["Success"] is string success) { <div class="alert success">@success</div> }
+                @if (TempData["Error"] is string error) { <div class="alert error">@error</div> }
+                @RenderBody()
+            </div>
+        </div>
+    </div>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

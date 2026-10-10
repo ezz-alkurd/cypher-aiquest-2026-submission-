@@ -1,0 +1,17 @@
+@model StoreProfile
+<div class="store-assistant" data-assistant-endpoint="/s/@Model.Slug/assistant">
+    <button class="assistant-toggle" type="button" aria-expanded="false" aria-controls="assistant-panel">اسأل مساعد المتجر <span aria-hidden="true">✦</span></button>
+    <section id="assistant-panel" class="assistant-panel" hidden aria-label="مساعد المتجر">
+        <header><div><strong>مساعد @Model.Name</strong><small>اسأل عن الأصناف والأسعار ومعلومات المحل</small></div><button type="button" class="assistant-close" aria-label="إغلاق المحادثة">×</button></header>
+        <div class="assistant-messages" role="log" aria-live="polite"><p class="assistant-bubble">أهلاً! شو حاب تعرف عن منتجاتنا أو المحل؟</p></div>
+        <form class="assistant-form">
+            @Html.AntiForgeryToken()
+            <label class="assistant-input-label" for="assistant-text">سؤالك</label>
+            <textarea id="assistant-text" rows="2" maxlength="2000" placeholder="مثلاً: عندك صوص؟" required></textarea>
+            <div><span class="assistant-status" role="status"></span><button type="submit">إرسال</button></div>
+        </form>
+    </section>
+</div>
+<link rel="stylesheet" href="~/css/assistant.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/assistant-theme.css" asp-append-version="true" />
+<script src="~/js/assistant.js" asp-append-version="true" defer></script>

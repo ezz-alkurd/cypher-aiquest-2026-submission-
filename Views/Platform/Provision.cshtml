@@ -1,0 +1,19 @@
+@model ProvisionBusinessInput
+@{ ViewData["Title"] = "تفعيل نشاط"; Layout = "_PlatformLayout"; }
+<section class="shell platform-requests">
+    <div class="admin-heading"><div><span class="eyebrow">فريق Cypher</span><h1>تفعيل نشاط جديد</h1><p>اختر الخدمات المتفق عليها بعد التواصل مع صاحب النشاط. واتساب يحتاج ربطاً وتحققاً منفصلين قبل استقبال الرسائل.</p></div><a class="button light" href="/platform/operator/requests">العودة للطلبات</a></div>
+    <form class="form-card" method="post" action="/platform/operator/requests/@Model.RequestId/provision">
+        @Html.AntiForgeryToken()
+        <input asp-for="RequestId" type="hidden" />
+        <div asp-validation-summary="All" class="validation"></div>
+        <label>اسم النشاط <input asp-for="BusinessName" required /></label>
+        <label>رابط المتجر، أحرف إنجليزية صغيرة وأرقام وشرطة <input asp-for="Slug" placeholder="my-business" required /></label>
+        <label>اسم دخول صاحب النشاط <input asp-for="Username" autocomplete="off" required /></label>
+        <label>كلمة مرور مؤقتة، 12 حرفاً على الأقل <input asp-for="TemporaryPassword" type="password" autocomplete="new-password" minlength="12" required /></label>
+        <label><input asp-for="Inventory" type="checkbox" /> إدارة المنتجات والمخزون</label>
+        <label><input asp-for="WhatsApp" type="checkbox" /> خدمة واتساب (تحتاج ربطاً لاحقاً)</label>
+        <label><input asp-for="Storefront" type="checkbox" /> المتجر الإلكتروني</label>
+        <label><input asp-for="WebsiteAssistant" type="checkbox" /> مساعد المتجر (يتطلب المتجر)</label>
+        <button class="button dark" type="submit">إنشاء النشاط والحساب</button>
+    </form>
+</section>

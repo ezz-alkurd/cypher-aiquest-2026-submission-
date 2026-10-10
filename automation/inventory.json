@@ -1,0 +1,141 @@
+{
+  "name": "Cypher TOOL - Inventory",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "storeId",
+              "type": "number"
+            },
+            {
+              "name": "sessionId"
+            },
+            {
+              "name": "conversationId"
+            },
+            {
+              "name": "leaseToken"
+            },
+            {
+              "name": "messageId"
+            },
+            {
+              "name": "mode"
+            },
+            {
+              "name": "query"
+            },
+            {
+              "name": "requestedQuantity",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "1c7c214e-2a28-4de6-a4b1-a1d3bcc5cf21",
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1472,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'inventory', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Input\").first().json)] }}"
+        }
+      },
+      "id": "3fb86ada-935b-4ed2-a41e-3d54e09354e1",
+      "name": "SQL Read current inventory",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        1744,
+        1216
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "inventory: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction inventory(input, result) {\n  verifyScope(result, input);\n  insist(Array.isArray(result.products), 'inventory_products_missing');\n  const products = result.products.filter(p => p.isActive === true).map(p => {\n    insist(p.storeId === input.storeId, 'cross_store_product');\n    return {...p, productId: integer(p.productId, 1), priceCents: integer(p.priceCents), stockQuantity: integer(p.stockQuantity)};\n  });\n  if (input.mode === 'categories') return {success: true, status: 'categories', categories: [...new Set(products.map(p => p.category))].filter(Boolean)};\n  insist(input.mode === 'search', 'invalid_inventory_mode');\n  const query = arabic(input.query);\n  insist(query, 'empty_product_query');\n  const fields = p => [p.name, p.sku, ...(Array.isArray(p.aliases) ? p.aliases : String(p.aliases || '').split(','))];\n  const exact = products.filter(p => fields(p).some(v => arabic(v) === query));\n  const found = exact.length ? exact : products.filter(p => fields(p).concat(p.description).some(v => arabic(v).includes(query)));\n  const requested = integer(input.requestedQuantity || 1, 1, 100000);\n  const safe = p => ({productId: p.productId, name: p.name, category: p.category, description: p.description,\n    unit: p.unit, unitPrice: money(p.priceCents), priceCents: p.priceCents, available: p.stockQuantity > 0,\n    canFulfillRequestedQuantity: p.stockQuantity >= requested});\n  return {success: true, status: found.length === 0 ? 'not_found' : found.length === 1 ? 'unique' : 'ambiguous',\n    ...(found.length === 1 ? {product: safe(found[0])} : {options: found.slice(0, 8).map(safe)})};\n}\n\nfunction verifyScope(result, input) {\n  insist(result.storeId === input.storeId, 'store_scope_mismatch');\n  if (input.sessionId) insist(result.sessionId === input.sessionId, 'session_scope_mismatch');\n  return result;\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nreturn [{json:inventory($(\"Input\").first().json,payload($input.all().map(i=>i.json)))}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "bd386240-4022-4a51-86b5-df3dd67d1b6d",
+      "name": "Resolve product",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nreturn [{json:{success:false,ok:false,code:'integration_unavailable'}}];"
+      },
+      "id": "721d7161-bdc0-483f-b940-7a4e33ddc96f",
+      "name": "Integration failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2672,
+        1616
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "SQL Read current inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Read current inventory": {
+      "main": [
+        [
+          {
+            "node": "Resolve product",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Integration failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "511839ca-e641-492b-bc8a-81400dddf00b",
+  "nodeGroups": [],
+  "id": "pW14BYnmhipobjI7",
+  "tags": []
+}

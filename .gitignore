@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.idea/
+.dotnet/
+wwwroot/uploads/
+*.user
+*.suo
+*.db
+.env
+appsettings.Production.json
+TestResults/
+Properties/PublishProfiles/

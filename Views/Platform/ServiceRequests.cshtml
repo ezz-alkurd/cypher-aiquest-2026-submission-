@@ -1,0 +1,30 @@
+@model List<ServiceChangeRequest>
+@{ ViewData["Title"] = "طلبات تغيير الخدمات"; Layout = "_PlatformLayout"; }
+<section class="shell platform-requests">
+    <div class="admin-heading"><div><span class="eyebrow">فريق Cypher</span><h1>طلبات تغيير الخدمات</h1><p>طلبات أصحاب الأنشطة لإضافة الخدمات أو إزالتها.</p></div></div>
+    @if (Model.Count == 0) { <div class="empty-state"><h2>لا توجد طلبات بعد</h2><p>ستظهر طلبات أصحاب الأنشطة هنا.</p></div> }
+    else
+    {
+        <div class="service-request-list">
+        @foreach (var request in Model)
+        {
+            <article class="panel operator-request-card">
+                <div class="panel-head"><div><span class="eyebrow">@request.Store.Name</span><h2>@CypherCommerce.Services.BusinessServices.Label(request.ServiceCode)</h2></div><span class="badge">@(request.Status == "Pending" ? "قيد المراجعة" : request.Status == "Approved" ? "تمت الموافقة" : "مرفوض")</span></div>
+                <p>طلب <strong>@(request.RequestedAction == "Add" ? "إضافة" : "إزالة")</strong> · @request.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+                @if (!string.IsNullOrWhiteSpace(request.OwnerNote)) { <p>ملاحظة صاحب النشاط: @request.OwnerNote</p> }
+                @if (request.ServiceCode == CypherCommerce.Services.BusinessServices.Storefront && request.RequestedAction == "Remove" && request.Store.WebsiteAssistantEnabled)
+                { <p class="service-pending">الموافقة ستوقف مساعد الموقع أيضاً.</p> }
+                @if (request.Status == "Pending")
+                {
+                    <div class="operator-request-actions">
+                        <form method="post" action="/platform/operator/service-requests/@request.Id/approve">@Html.AntiForgeryToken()<input name="operatorNote" maxlength="500" placeholder="رد للفريق أو صاحب النشاط (اختياري)" /><button class="button dark" type="submit">موافقة وتطبيق</button></form>
+                        <form method="post" action="/platform/operator/service-requests/@request.Id/reject">@Html.AntiForgeryToken()<input name="operatorNote" maxlength="500" placeholder="سبب الرفض (اختياري)" /><button class="button light" type="submit">رفض</button></form>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(request.OperatorNote)) { <p>رد الفريق: @request.OperatorNote</p> }
+                <a href="/platform/operator/businesses/@request.StoreId/services">عرض خدمات النشاط ←</a>
+            </article>
+        }
+        </div>
+    }
+</section>

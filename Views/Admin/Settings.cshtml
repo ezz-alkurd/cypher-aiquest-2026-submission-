@@ -1,0 +1,39 @@
+@model StoreProfile
+@{ ViewData["Title"] = "بيانات النشاط"; Layout = "_AdminLayout"; }
+@{ var facts = ViewBag.BotFacts as BotStoreFacts ?? new BotStoreFacts(); }
+<div class="admin-heading"><div><div class="eyebrow">بوابة Cypher</div><h1>بيانات النشاط</h1><p>حدّث بيانات التواصل والمعلومات التي تستخدمها خدمات نشاطك.</p></div></div>
+<form class="form-card admin-form" method="post" action="/admin/settings">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="validation"></div>
+    <div class="form-grid">
+        <label>اسم النشاط <input name="Name" value="@Model.Name" required /></label>
+        <label>رقم الهاتف <input name="Phone" value="@Model.Phone" /></label>
+        <label>العنوان <input name="Address" value="@Model.Address" /></label>
+        @if (Model.WhatsAppEnabled) { <label>رقم واتساب <input name="WhatsApp" value="@Model.WhatsApp" /></label> }
+        @if (Model.StorefrontEnabled) {
+            <label>جملة تعريفية <input name="Tagline" value="@Model.Tagline" /></label>
+        }
+        @if (Model.StorefrontEnabled || Model.WhatsAppEnabled) { <label>رسوم التوصيل (د.أ) <input type="number" name="DeliveryFee" min="0" step="0.01" value="@Model.DeliveryFee.ToString(System.Globalization.CultureInfo.InvariantCulture)" /></label> }
+        @if (Model.WhatsAppEnabled || Model.WebsiteAssistantEnabled) {
+            <label>ساعات الدوام <textarea name="WorkingHours" maxlength="1000">@facts.WorkingHours</textarea></label>
+            <label>التوصيل <select name="DeliveryEnabled"><option value="" selected="@(facts.DeliveryEnabled is null)">غير محدد</option><option value="true" selected="@(facts.DeliveryEnabled == true)">متاح</option><option value="false" selected="@(facts.DeliveryEnabled == false)">غير متاح</option></select></label>
+            <label>مناطق التوصيل (افصل بفاصلة، أو * لكل المناطق) <input name="DeliveryAreas" maxlength="1000" value="@facts.DeliveryAreas" /></label>
+            <label>سياسة التوصيل <textarea name="DeliveryPolicy" maxlength="1000">@facts.DeliveryPolicy</textarea></label>
+            <label>سياسة الإرجاع <textarea name="ReturnPolicy" maxlength="1000">@facts.ReturnPolicy</textarea></label>
+            <label>شروط الطلب <textarea name="OrderPolicy" maxlength="1000">@facts.OrderPolicy</textarea></label>
+        }
+    </div>
+    @if (Model.StorefrontEnabled) { <label>عن النشاط <textarea name="About">@Model.About</textarea></label> }
+    <button class="button dark" type="submit">حفظ البيانات ↗</button>
+</form>
+@if (Model.WhatsAppEnabled)
+{
+    <section class="form-card" id="whatsapp-setup">
+        <h2>ربط واتساب</h2><p>يحصل كل نشاط على اتصال Cypher مستقل. امسح QR من الأجهزة المرتبطة في واتساب ثم تحقق من الاتصال.</p>
+        <form>@Html.AntiForgeryToken()</form>
+        <button type="button" class="button dark" data-setup-action="connect">عرض QR</button>
+        <button type="button" class="button" data-setup-action="verify">تحقق من الاتصال</button>
+        <p role="status"></p><img hidden alt="رمز ربط واتساب" width="260" height="260" />
+    </section>
+    <script src="~/js/whatsapp-setup.js" asp-append-version="true" defer></script>
+}

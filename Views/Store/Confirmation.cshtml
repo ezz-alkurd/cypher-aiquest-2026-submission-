@@ -1,0 +1,14 @@
+@model ShopOrder
+@{ ViewData["Title"] = "تم استلام الطلب"; var basePath = Context.Items["StoreBasePath"] as string ?? ""; }
+<div class="shell page-section"><div class="confirmation">
+    <div class="confirmation-icon">✓</div><div class="eyebrow">تم استلام طلبك</div><h1>شكراً لطلبك!</h1>
+    <p>وصل طلبك إلى المتجر. احتفظ برقم الطلب لتتابع حالته في أي وقت.</p>
+    <div class="order-number">رقم الطلب <strong>@Model.OrderNumber</strong></div>
+    <div class="confirmation-lines">
+        @foreach (var line in Model.Lines) { <div><span>@line.ProductName × @line.Quantity</span><strong>@line.LineTotal.ToString("0.00") د.أ</strong></div> }
+        <div><span>مجموع المنتجات</span><strong>@Model.Subtotal.ToString("0.00") د.أ</strong></div>
+        <div><span>تكلفة التوصيل</span><strong>@Model.DeliveryFee.ToString("0.00") د.أ</strong></div>
+        <div class="summary-total"><span>المبلغ الإجمالي</span><strong>@Model.Total.ToString("0.00") د.أ</strong></div>
+    </div>
+    <div class="confirmation-actions"><a class="button dark" href="@(basePath)/track?number=@Uri.EscapeDataString(Model.OrderNumber)">تتبع الطلب ←</a><a class="button light" href="@(basePath)/shop">العودة للمتجر</a></div>
+</div></div>

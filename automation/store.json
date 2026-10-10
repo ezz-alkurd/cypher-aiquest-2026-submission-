@@ -1,0 +1,131 @@
+{
+  "name": "Cypher TOOL - Store Info",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "storeId",
+              "type": "number"
+            },
+            {
+              "name": "sessionId"
+            },
+            {
+              "name": "conversationId"
+            },
+            {
+              "name": "leaseToken"
+            },
+            {
+              "name": "messageId"
+            }
+          ]
+        }
+      },
+      "id": "f68682f5-456f-4edd-b405-ceb5b6bde1ca",
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        16,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'store', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Input\").first().json)] }}"
+        }
+      },
+      "id": "3760fef7-65fe-400a-a06f-75dd13ed3fbe",
+      "name": "SQL Read store facts",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        304,
+        -80
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "store: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction verifyScope(result, input) {\n  insist(result.storeId === input.storeId, 'store_scope_mismatch');\n  if (input.sessionId) insist(result.sessionId === input.sessionId, 'session_scope_mismatch');\n  return result;\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst r=verifyScope(payload($input.all().map(i=>i.json)),$(\"Input\").first().json); insist(r.success===true && r.store && typeof r.store==='object','store_info_missing'); const s=r.store; return [{json:{success:true,store:{name:s.name||null,phone:s.phone||null,location:s.location||null,workingHours:s.workingHours||null,deliveryAreas:s.deliveryAreas||null,deliveryPolicy:s.deliveryPolicy||null,returnPolicy:s.returnPolicy||null,orderPolicy:s.orderPolicy||null}}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "f6bac011-bd9e-48bd-929e-52a52abe6aa2",
+      "name": "Return store facts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nreturn [{json:{success:false,ok:false,code:'integration_unavailable'}}];"
+      },
+      "id": "63133fd3-298f-41d5-bceb-7fe0837edf60",
+      "name": "Integration failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        320
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "SQL Read store facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Read store facts": {
+      "main": [
+        [
+          {
+            "node": "Return store facts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Integration failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "96e4d789-93f4-49f9-a69f-942cf2f6b77c",
+  "nodeGroups": [],
+  "id": "83tPWgMMyloMBS1q",
+  "tags": []
+}

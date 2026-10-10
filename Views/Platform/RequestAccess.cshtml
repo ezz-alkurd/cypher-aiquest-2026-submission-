@@ -1,0 +1,21 @@
+@model AccessRequestInput
+@{ ViewData["Title"] = "طلب الانضمام"; Layout = "_PlatformLayout"; }
+<section class="shell platform-form-wrap"><div class="platform-form-intro"><span class="eyebrow">ابدأ مع Cypher</span><h1>أخبرنا عن نشاطك</h1><p>أرسل طلبك والخدمات التي تهمك. سنراجع التفاصيل ونتواصل معك قبل تفعيل أي حساب أو خدمة.</p></div>
+<form class="form-card platform-form" method="post" action="/platform/request">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="validation"></div>
+    <div class="form-grid"><label>اسم النشاط <input name="BusinessName" value="@Model.BusinessName" maxlength="120" required autocomplete="organization" /></label>
+    <label>اسم المسؤول <input name="ContactName" value="@Model.ContactName" maxlength="120" required autocomplete="name" /></label>
+    <label>رقم للتواصل <input name="Phone" value="@Model.Phone" maxlength="40" required autocomplete="tel" inputmode="tel" /></label>
+    <label>البريد الإلكتروني (اختياري) <input name="Email" value="@Model.Email" maxlength="160" type="email" autocomplete="email" /></label></div>
+    <fieldset class="service-options"><legend>ما الخدمات التي تهمك؟</legend>
+        <label><input type="checkbox" name="Inventory" value="true" checked="@Model.Inventory" /><span><strong>المنتجات والمخزون</strong><small>إدارة الأصناف والكميات</small></span></label>
+        <label><input type="checkbox" name="WhatsApp" value="true" checked="@Model.WhatsApp" /><span><strong>مساعد واتساب</strong><small>محادثات وطلبات للمراجعة</small></span></label>
+        <label><input type="checkbox" name="Storefront" value="true" checked="@Model.Storefront" /><span><strong>متجر إلكتروني</strong><small>صفحات منتجات وطلبات موقع</small></span></label>
+        <label><input type="checkbox" name="WebsiteAssistant" value="true" checked="@Model.WebsiteAssistant" /><span><strong>مساعد الموقع</strong><small>أسئلة الزبائن داخل المتجر</small></span></label>
+    </fieldset>
+    <label>ملاحظات إضافية (اختياري) <textarea name="Notes" maxlength="1000">@Model.Notes</textarea></label>
+    <div class="form-honeypot" aria-hidden="true"><label>اترك هذا الحقل فارغاً <input name="companyWebsite" tabindex="-1" autocomplete="off" /></label></div>
+    <small>سنستخدم بيانات التواصل التي تقدمها للرد على طلب الانضمام.</small>
+    <button class="button dark" type="submit">إرسال الطلب ←</button>
+</form></section>

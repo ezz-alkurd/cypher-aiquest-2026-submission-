@@ -1,0 +1,1181 @@
+{
+  "name": "Cypher - Connect Store WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cypher-store-whatsapp-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c19ca6ee-e2d5-4786-b159-fd9b4f5e1111",
+      "name": "Website WhatsApp Setup",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        112,
+        352
+      ],
+      "webhookId": "87a87d8c-dffa-4224-bb9e-c14372468d2a",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "WD02bALcTPrtEwNq",
+          "name": "iCare Evolution Inbound"
+        }
+      },
+      "notes": "Backend-to-n8n only. Owner authorization is checked again by SQL. Allocate a dedicated website Header Auth credential before production; existing inbound credential is a draft binding only."
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction onboardingInput(body) {\n  const storeId = integer(body.storeId, 1);\n  const ownerUserId = text(body.ownerUserId, 200);\n  insist(ownerUserId && ['connect', 'verify'].includes(body.action), 'invalid_onboarding_request');\n  // The website backend supplies the authenticated owner identity; a browser must not call this directly.\n  return {storeId, ownerUserId, action: body.action, expectedPhone: text(body.expectedPhone, 20)};\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nreturn [{json:onboardingInput($input.first().json.body||{})}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "b9cde180-b0a2-4f62-a542-468ddabaf0bf",
+      "name": "Read website request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'onboarding.authorize', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Read website request\").first().json)] }}"
+        }
+      },
+      "id": "80615af0-094f-4304-af51-ab231cb94056",
+      "name": "SQL Authorize store owner",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        352
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "onboarding.authorize: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction verifyOnboarding(input, result) {\n  insist(result.authorized === true && result.storeId === input.storeId && result.ownerUserId === input.ownerUserId, 'owner_store_not_authorized');\n  insist(/^[1-9][0-9]{7,14}$/.test(result.expectedPhone), 'expected_phone_missing');\n  insist(/^cypher-[0-9]+$/.test(result.instanceName) && result.instanceName === `cypher-${input.storeId}`, 'onboarding_instance_mismatch');\n  insist(result.onboardingToken, 'onboarding_lease_missing');\n  return {...result, action: input.action};\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nreturn [{json:verifyOnboarding($(\"Read website request\").first().json,payload($input.all().map(i=>i.json)))}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "05729c4f-69fb-4182-9d24-433bc32e64be",
+      "name": "Verify owner scope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.authorized === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e2f7775-31c4-463e-9609-3e0cd8ed1377",
+      "name": "Owner authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1232,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action === 'connect' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "46fabc33-3fed-4f39-b041-210b6cc1bf26",
+      "name": "Connect requested",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1504,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ \"https://evolution.207-180-200-93.sslip.io\" + '/instance/create' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {instanceName:$(\"Verify owner scope\").first().json.instanceName,integration:'WHATSAPP-BAILEYS',qrcode:true,number:$(\"Verify owner scope\").first().json.expectedPhone,groupsIgnore:true,syncFullHistory:false} }}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "48e10163-780a-4a49-abea-7d970eaa0d9c",
+      "name": "Create store instance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1792,
+        112
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "q5SzFXCZmWOfBuwR",
+          "name": "iCare Evolution API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst r=$input.first().json; const b=r.body||{}; const msg=JSON.stringify(b).toLowerCase(); const existing=[400,403,409].includes(Number(r.statusCode)) && /already|in use|exists/.test(msg); insist((Number(r.statusCode)>=200&&Number(r.statusCode)<300)||existing,'evolution_create_failed');return [{json:{...$(\"Verify owner scope\").first().json,proceed:true}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "06669174-aa62-405f-a349-5aef2c2747e5",
+      "name": "Check create result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proceed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dd516af8-6b17-4091-a7f9-1e7a98dbdbc7",
+      "name": "Instance available",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2352,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://evolution.207-180-200-93.sslip.io\" + '/instance/connect/' + encodeURIComponent($(\"Verify owner scope\").first().json.instanceName) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d6fc803a-3edc-408e-b35f-3a93b33fa87d",
+      "name": "Get WhatsApp QR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2624,
+        112
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "q5SzFXCZmWOfBuwR",
+          "name": "iCare Evolution API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst r=$input.first().json;insist(Number(r.statusCode)>=200&&Number(r.statusCode)<300,'qr_unavailable');const b=r.body||{};const raw=text(b.base64||b.qrcode?.base64,400000);const pairingCode=text(b.pairingCode||b.qrcode?.pairingCode,100);const qrBase64=/^[A-Za-z0-9+/=]+$/.test(raw.replace('data:image/png;base64,',''))&&raw?raw:null;const c=$(\"Verify owner scope\").first().json;return [{json:{...c,proposedStatus:'pending',qrBase64,pairingCode,requiresScan:!!(qrBase64||pairingCode)}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "77f71e16-aed9-462a-bf92-1f5d15a1d12a",
+      "name": "Sanitize QR response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'onboarding.pending', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Sanitize QR response\").first().json)] }}"
+        }
+      },
+      "id": "15fdd4b4-9096-4caf-b768-0376f8e590bc",
+      "name": "SQL Save pending pairing",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        3184,
+        112
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "onboarding.pending: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction verifyScope(result, input) {\n  insist(result.storeId === input.storeId, 'store_scope_mismatch');\n  if (input.sessionId) insist(result.sessionId === input.sessionId, 'session_scope_mismatch');\n  return result;\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst c=$(\"Sanitize QR response\").first().json;const r=verifyScope(payload($input.all().map(i=>i.json)),c);insist(r.success===true,'pairing_not_saved');return [{json:{httpStatus:200,result:{success:true,ready:false,instanceName:c.instanceName,qrBase64:c.qrBase64,pairingCode:c.pairingCode,requiresScan:c.requiresScan,nextAction:'verify'}}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "59bbf393-3c4f-40e6-8371-8a3b3d717e2f",
+      "name": "Return pairing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3472,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://evolution.207-180-200-93.sslip.io\" + '/instance/connectionState/' + encodeURIComponent($(\"Verify owner scope\").first().json.instanceName) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "58a9954b-f6e3-4e64-b9f0-4558b6b078de",
+      "name": "Check WhatsApp connection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1792,
+        432
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "q5SzFXCZmWOfBuwR",
+          "name": "iCare Evolution API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst r=$input.first().json;return [{json:{open:Number(r.statusCode)>=200&&Number(r.statusCode)<300&&r.body?.instance?.state==='open'}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "72493456-1ebe-47c3-8253-6ae4f45fcacd",
+      "name": "Check open connection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.open === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "80792d96-943c-41d7-9533-3a4c9a96eca2",
+      "name": "Connection open",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2352,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://evolution.207-180-200-93.sslip.io\" + '/instance/fetchInstances?instanceName=' + encodeURIComponent($(\"Verify owner scope\").first().json.instanceName) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3332b14e-d166-4df3-b7b6-d266bb0c3d4a",
+      "name": "Fetch linked store number",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2624,
+        432
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "q5SzFXCZmWOfBuwR",
+          "name": "iCare Evolution API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction connectedOwner(context, response) {\n  const records = Array.isArray(response) ? response : [response];\n  const record = records.find(p => (p.name || p.instanceName || p.instance?.instanceName) === context.instanceName);\n  const jid = record?.ownerJid || record?.owner || record?.instance?.owner || '';\n  const digits = String(jid).split('@')[0].split(':')[0];\n  insist(digits === context.expectedPhone && /^[1-9][0-9]{7,14}$/.test(digits), 'connected_owner_phone_mismatch');\n  return {...context, ownerVerified: true};\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst r=$input.first().json;insist(Number(r.statusCode)>=200&&Number(r.statusCode)<300,'owner_lookup_failed');return [{json:connectedOwner($(\"Verify owner scope\").first().json,r.body)}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "13fefa69-a567-4fe4-b1dc-eb5d405f3024",
+      "name": "Verify linked owner number",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ownerVerified === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "415d3907-d83c-42b8-9996-1b1f55c1180d",
+      "name": "Number verified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3184,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ \"https://evolution.207-180-200-93.sslip.io\" + '/webhook/set/' + encodeURIComponent($(\"Verify owner scope\").first().json.instanceName) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {webhook:{enabled:true,url:'https://n8n.207-180-200-93.sslip.io/webhook/cypher-evolution-inbound-v1',webhookByEvents:false,webhookBase64:false,events:['MESSAGES_UPSERT']}} }}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "171cd701-e25a-4391-81d5-c2b02e15c946",
+      "name": "Configure Cypher inbound webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3472,
+        432
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "tp3mQn4D2NniYQXo",
+          "name": "iCare Evolution Webhook Setup"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst r=$input.first().json;insist(Number(r.statusCode)>=200&&Number(r.statusCode)<300,'webhook_setup_failed');return [{json:{configured:true}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "913658e0-fe0d-411a-8dd0-b460491959cd",
+      "name": "Check webhook configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3744,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.configured === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "213e9093-07ca-4168-ae64-0e4a52f02c2a",
+      "name": "Webhook configured",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4032,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://evolution.207-180-200-93.sslip.io\" + '/webhook/find/' + encodeURIComponent($(\"Verify owner scope\").first().json.instanceName) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "879657e4-5392-4095-a98b-5b3a1dfa0b38",
+      "name": "Verify Cypher webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4304,
+        432
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "q5SzFXCZmWOfBuwR",
+          "name": "iCare Evolution API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst r=$input.first().json;const w=r.body?.webhook||r.body||{};const c=$(\"Verify owner scope\").first().json;insist(Number(r.statusCode)>=200&&Number(r.statusCode)<300&&w.enabled===true&&w.url==='https://n8n.207-180-200-93.sslip.io/webhook/cypher-evolution-inbound-v1'&&w.events?.includes('MESSAGES_UPSERT')&&w.webhookByEvents!==true,'webhook_not_verified');return [{json:{...c,ownerVerified:true,webhookVerified:true,proposedStatus:'ready'}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "e4bad363-7a82-4683-9697-e53767aaecac",
+      "name": "Check persisted webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4592,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.webhookVerified === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c8e91515-d9a6-4e0e-88fd-0e1ff12b7f99",
+      "name": "Ready verified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4864,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'onboarding.ready', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Check persisted webhook\").first().json)] }}"
+        }
+      },
+      "id": "d2958b24-0c1d-4151-9f2d-0fc8970deb20",
+      "name": "SQL Mark WhatsApp ready",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        5152,
+        432
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "onboarding.ready: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction verifyScope(result, input) {\n  insist(result.storeId === input.storeId, 'store_scope_mismatch');\n  if (input.sessionId) insist(result.sessionId === input.sessionId, 'session_scope_mismatch');\n  return result;\n}\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nconst c=$(\"Verify owner scope\").first().json;const r=verifyScope(payload($input.all().map(i=>i.json)),c);insist(r.success===true,'ready_not_saved');return [{json:{httpStatus:200,result:{success:true,ready:true,instanceName:c.instanceName}}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "630c917a-bec9-45f4-b735-f7eb7c43df8a",
+      "name": "Return ready status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5424,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nconst safeCodes = new Set(['explicit_confirmation_required','checkout_fields_missing','latest_summary_not_delivered','price_changed_requires_new_summary','delivery_changed_requires_new_summary','product_not_available','insufficient_stock','cart_item_not_found','submitted_cart_requires_new_conversation']);\ntry {\nreturn [{json:{httpStatus:200,result:{success:true,ready:false,nextAction:'scan_then_verify'}}}];\n} catch (error) { return [{json:{success:false,ok:false,code:safeCodes.has(error.message)?error.message:'integration_unavailable'}}]; }"
+      },
+      "id": "cf46af3d-2c80-41ba-b600-b26ec43785b3",
+      "name": "Pairing still pending",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nreturn [{json:{httpStatus:503,result:{success:false,ready:false,code:'integration_unavailable'}}}];"
+      },
+      "id": "c9c5004b-1f67-48d3-83e2-d1588598118c",
+      "name": "Setup unavailable",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.result || {success:false,ready:false,code:\"integration_unavailable\"} }}",
+        "options": {
+          "responseCode": "={{ $json.httpStatus || 503 }}"
+        }
+      },
+      "id": "f9571eab-68bd-41a9-a74e-7c6523c64356",
+      "name": "Return setup result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        5744,
+        352
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Website WhatsApp Setup": {
+      "main": [
+        [
+          {
+            "node": "Read website request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read website request": {
+      "main": [
+        [
+          {
+            "node": "SQL Authorize store owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Authorize store owner": {
+      "main": [
+        [
+          {
+            "node": "Verify owner scope",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify owner scope": {
+      "main": [
+        [
+          {
+            "node": "Owner authorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Owner authorized": {
+      "main": [
+        [
+          {
+            "node": "Connect requested",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Connect requested": {
+      "main": [
+        [
+          {
+            "node": "Create store instance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check WhatsApp connection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create store instance": {
+      "main": [
+        [
+          {
+            "node": "Check create result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check create result": {
+      "main": [
+        [
+          {
+            "node": "Instance available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instance available": {
+      "main": [
+        [
+          {
+            "node": "Get WhatsApp QR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get WhatsApp QR": {
+      "main": [
+        [
+          {
+            "node": "Sanitize QR response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize QR response": {
+      "main": [
+        [
+          {
+            "node": "SQL Save pending pairing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Save pending pairing": {
+      "main": [
+        [
+          {
+            "node": "Return pairing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return pairing": {
+      "main": [
+        [
+          {
+            "node": "Return setup result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check WhatsApp connection": {
+      "main": [
+        [
+          {
+            "node": "Check open connection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check open connection": {
+      "main": [
+        [
+          {
+            "node": "Connection open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Connection open": {
+      "main": [
+        [
+          {
+            "node": "Fetch linked store number",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pairing still pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch linked store number": {
+      "main": [
+        [
+          {
+            "node": "Verify linked owner number",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify linked owner number": {
+      "main": [
+        [
+          {
+            "node": "Number verified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Number verified": {
+      "main": [
+        [
+          {
+            "node": "Configure Cypher inbound webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configure Cypher inbound webhook": {
+      "main": [
+        [
+          {
+            "node": "Check webhook configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check webhook configuration": {
+      "main": [
+        [
+          {
+            "node": "Webhook configured",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook configured": {
+      "main": [
+        [
+          {
+            "node": "Verify Cypher webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Cypher webhook": {
+      "main": [
+        [
+          {
+            "node": "Check persisted webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check persisted webhook": {
+      "main": [
+        [
+          {
+            "node": "Ready verified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready verified": {
+      "main": [
+        [
+          {
+            "node": "SQL Mark WhatsApp ready",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Mark WhatsApp ready": {
+      "main": [
+        [
+          {
+            "node": "Return ready status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Setup unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return ready status": {
+      "main": [
+        [
+          {
+            "node": "Return setup result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pairing still pending": {
+      "main": [
+        [
+          {
+            "node": "Return setup result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup unavailable": {
+      "main": [
+        [
+          {
+            "node": "Return setup result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c3381a3a-48a6-43d3-a725-2899540b6f10",
+  "nodeGroups": [],
+  "id": "HA5J73PKwI7FYZZj",
+  "tags": []
+}

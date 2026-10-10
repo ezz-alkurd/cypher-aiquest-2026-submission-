@@ -1,0 +1,25 @@
+@model CheckoutViewModel
+@{ ViewData["Title"] = "إتمام الطلب"; var basePath = Context.Items["StoreBasePath"] as string ?? ""; }
+<div class="shell page-section"><div class="eyebrow">الخطوة الأخيرة</div><h1 class="page-title">إتمام الطلب</h1>
+    <div class="cart-layout">
+        <form class="form-card" method="post" action="@(basePath)/checkout">
+            @Html.AntiForgeryToken()
+            <h2>بيانات التوصيل</h2>
+            <div asp-validation-summary="All" class="validation"></div>
+            <label>الاسم الكامل <input name="CustomerName" value="@Model.Input.CustomerName" required maxlength="150" /></label>
+            <label>رقم الهاتف <input name="Phone" value="@Model.Input.Phone" type="tel" required maxlength="40" placeholder="07xxxxxxxx" /></label>
+            <label>عنوان التوصيل <textarea name="DeliveryAddress" required maxlength="500">@Model.Input.DeliveryAddress</textarea></label>
+            <label>ملاحظات للمتجر (اختياري) <textarea name="CustomerNote" maxlength="1000">@Model.Input.CustomerNote</textarea></label>
+            <button class="button dark full" type="submit">تأكيد الطلب ↗</button>
+            <small>سيتواصل معك المتجر لتأكيد التوصيل والدفع.</small>
+        </form>
+        <aside class="summary-card">
+            <h2>ملخص طلبك</h2>
+            @foreach (var line in Model.Cart.Lines) { <div><span>@line.Product.Name × @line.Quantity</span><strong>@line.Total.ToString("0.00") د.أ</strong></div> }
+            <div><span>مجموع المنتجات</span><strong>@Model.Cart.Subtotal.ToString("0.00") د.أ</strong></div>
+            <div><span>تكلفة التوصيل</span><strong>@Model.Cart.DeliveryFee.ToString("0.00") د.أ</strong></div>
+            <small class="delivery-note">تُضاف تكلفة التوصيل مرة واحدة إلى الطلب.</small>
+            <div class="summary-total"><span>الإجمالي المطلوب</span><strong>@Model.Cart.Total.ToString("0.00") د.أ</strong></div>
+        </aside>
+    </div>
+</div>

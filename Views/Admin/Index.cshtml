@@ -1,0 +1,95 @@
+@model DashboardViewModel
+@{ ViewData["Title"] = "نظرة عامة"; Layout = "_AdminLayout"; var isNew = Model.ProductCount == 0 && Model.RecentOrders.Count == 0; var maxDailyValue = Math.Max(1, Model.DailyOrders.Max(x => x.Value)); }
+<div class="admin-heading">
+    <div><span class="eyebrow">بوابة Cypher / @Model.Store.Name</span><h1>نظرة عامة</h1><p>منتجاتك، طلباتك ومخزونك في مكان واحد.</p></div>
+    <a class="button dark" href="/admin/products/new">+ إضافة منتج</a>
+</div>
+
+<section class="panel" style="margin-bottom:1.5rem">
+    <div class="panel-head"><h2>خدمات نشاطك</h2><a href="/admin/services">إدارة الخدمات ←</a></div>
+    <p>المنتجات والمخزون: @(Model.Store.InventoryEnabled ? "مفعلة" : "غير مفعلة") · المتجر الإلكتروني: @(Model.Store.StorefrontEnabled ? "مفعل" : "غير مفعل")</p>
+    @if (Model.Store.WhatsAppEnabled) { <p>مساعد واتساب: الخدمة مختارة، ويحتاج الربط والتحقق قبل استقبال الرسائل.</p> }
+    @if (Model.Store.WebsiteAssistantEnabled) { <p>مساعد الموقع: الخدمة مختارة، والربط المباشر قيد التجهيز.</p> }
+</section>
+
+@if (isNew)
+{
+    <section class="setup-banner">
+        <div><span class="setup-kicker">لنبدأ</span><h2>جهّز بيانات نشاطك</h2><p>أضف معلومات نشاطك والتصنيفات والمنتجات والمخزون.@(Model.Store.StorefrontEnabled ? " ستظهر المنتجات في متجرك الإلكتروني." : " يمكنك إدارة نشاطك دون موقع إلكتروني.")</p></div>
+        <span class="setup-symbol" aria-hidden="true">✳</span>
+    </section>
+    <div class="setup-grid">
+        <a class="setup-step" href="/admin/settings"><span class="step-number">01</span><strong>بيانات المتجر</strong><small>اسم المتجر، وصفه ووسائل التواصل</small><span class="step-arrow">←</span></a>
+        <a class="setup-step" href="/admin/categories/new"><span class="step-number">02</span><strong>التصنيفات</strong><small>أنشئ تصنيفاً وقسماً فرعياً</small><span class="step-arrow">←</span></a>
+        <a class="setup-step" href="/admin/products/new"><span class="step-number">03</span><strong>أول منتج</strong><small>أضف صورته وسعره وكمية المخزون</small><span class="step-arrow">←</span></a>
+        @if (Model.Store.StorefrontEnabled) { <a class="setup-step" href="/s/@Model.Store.Slug" target="_blank"><span class="step-number">04</span><strong>راجع متجرك</strong><small>انشر الرابط بعد اكتمال المنتجات</small><span class="step-arrow">↗</span></a> }
+    </div>
+}
+
+<div class="stats-grid">
+    <div class="stat-card"><span>طلبات اليوم</span><strong>@Model.OrdersToday</strong><small>طلب مسجل اليوم</small></div>
+    <div class="stat-card"><span>قيمة طلبات اليوم</span><strong>@Model.RevenueToday.ToString("0.00") <small>د.أ</small></strong><small>طلبات غير ملغاة أو معلقة للمراجعة</small></div>
+    <div class="stat-card"><span>تحتاج مراجعة</span><strong>@Model.NeedsReview</strong><small>طلبات في انتظار التأكيد</small></div>
+    <div class="stat-card warning"><span>مخزون منخفض</span><strong>@Model.LowStockCount</strong><small>منتجات وصلت للحد المحدد</small></div>
+</div>
+
+<div class="stats-grid stats-grid-secondary">
+    <div class="stat-card"><span>طلبات هذا الشهر</span><strong>@Model.OrdersThisMonth</strong><small>جميع الحالات</small></div>
+    <div class="stat-card"><span>قيمة الطلبات هذا الشهر</span><strong>@Model.RevenueThisMonth.ToString("0.00") <small>د.أ</small></strong><small>باستثناء الملغاة والمعلقة للمراجعة</small></div>
+    <div class="stat-card"><span>متوسط قيمة الطلب</span><strong>@Model.AverageOrderValue.ToString("0.00") <small>د.أ</small></strong><small>للطلبات غير الملغاة أو المعلقة</small></div>
+    <div class="stat-card"><span>قطع مطلوبة هذا الشهر</span><strong>@Model.UnitsSoldThisMonth</strong><small>من الطلبات غير الملغاة أو المعلقة</small></div>
+</div>
+
+<div class="admin-grid insights-grid">
+    <section class="panel">
+        <div class="panel-head"><h2>قيمة الطلبات خلال آخر ٧ أيام</h2><span class="muted">@Model.OrdersThisWeek طلب</span></div>
+        <div class="daily-chart" role="img" aria-label="قيمة الطلبات لكل يوم في آخر سبعة أيام">
+            @foreach (var day in Model.DailyOrders)
+            {
+                <div class="daily-chart-day"><strong>@day.Value.ToString("0.00")</strong><div class="daily-chart-track"><span style="height:@Math.Max(day.Value > 0 ? 8 : 0, (int)(day.Value / maxDailyValue * 100))%"></span></div><small>@day.Day.ToString("dd/MM")</small><small>@day.Orders طلب</small></div>
+            }
+        </div>
+        <p class="panel-note">القيم بالدينار الأردني، باستثناء الطلبات الملغاة والمعلقة للمراجعة.</p>
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>حالات الطلبات</h2><a href="/admin/orders">إدارة الطلبات ←</a></div>
+        @foreach (var item in Model.StatusCounts.Where(x => x.Count > 0)) { <div class="rank-row"><span>@OrderStatusDisplay.Label(item.Status)</span><strong>@item.Count</strong></div> }
+        @if (Model.StatusCounts.All(x => x.Count == 0)) { <p class="muted">لا توجد طلبات بعد.</p> }
+    </section>
+</div>
+
+<div class="stats-grid stats-grid-secondary operational-stats">
+    <div class="stat-card"><span>طلبات مكتملة</span><strong>@Model.CompletedOrders</strong><small>من جميع الفترات</small></div>
+    <div class="stat-card"><span>طلبات ملغاة</span><strong>@Model.CancelledOrders</strong><small>من جميع الفترات</small></div>
+    <div class="stat-card"><span>تكلفة التوصيل في طلبات الشهر</span><strong>@Model.DeliveryFeesThisMonth.ToString("0.00") <small>د.أ</small></strong><small>جزء من قيمة الطلبات، وليست أرباحاً</small></div>
+    <div class="stat-card"><span>منتجات نشطة</span><strong>@Model.ActiveProductCount</strong><small>من أصل @Model.ProductCount منتج</small></div>
+</div>
+
+<div class="admin-grid">
+    <section class="panel">
+        <div class="panel-head"><h2>أحدث الطلبات</h2><a href="/admin/orders">عرض الكل ←</a></div>
+        @if (Model.RecentOrders.Count > 0)
+        {
+            <div class="table-scroll"><table><thead><tr><th>الطلب</th><th>العميل</th><th>المصدر</th><th>المجموع</th><th>الحالة</th></tr></thead><tbody>
+            @foreach (var order in Model.RecentOrders) { <tr><td><a href="/admin/orders/@order.Id">@order.OrderNumber</a></td><td>@order.CustomerName</td><td>@order.SourceChannel</td><td>@order.Total.ToString("0.00") د.أ</td><td><span class="badge">@OrderStatusDisplay.Label(order.Status)</span></td></tr> }
+            </tbody></table></div>
+        }
+        else { <div class="panel-empty"><span>▤</span><strong>لا توجد طلبات حتى الآن</strong><small>ستظهر طلبات الموقع والمحادثات هنا.</small></div> }
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>تنبيهات المخزون</h2><a href="/admin/products">المنتجات ←</a></div>
+        @if (Model.LowStockProducts.Count > 0)
+        {
+            @foreach (var product in Model.LowStockProducts) { <div class="mini-product"><img src="@(product.ImageUrl ?? "/images/placeholder.svg")" alt="" /><div><strong>@product.Name</strong><small>الحد المحدد: @product.LowStockThreshold</small></div><span>@product.StockQuantity متبقٍ</span></div> }
+        }
+        else { <div class="panel-empty"><span>◫</span><strong>@(Model.ProductCount == 0 ? "أضف منتجاتك أولاً" : "المخزون ضمن الحدود")</strong><small>@(Model.ProductCount == 0 ? "ستظهر تنبيهات المخزون بعد إضافة المنتجات." : "لا توجد منتجات وصلت لحد التنبيه.")</small></div> }
+    </section>
+</div>
+
+@if (!isNew)
+{
+    <div class="admin-grid lower">
+        <section class="panel"><div class="panel-head"><h2>الأكثر طلباً</h2></div>@foreach (var item in Model.TopProducts) { <div class="rank-row"><span>@item.Product</span><strong>@item.Quantity مبيعاً</strong></div> }@if (Model.TopProducts.Count == 0) { <p class="muted">ستظهر المنتجات بعد أول طلب.</p> }</section>
+        <section class="panel"><div class="panel-head"><h2>مصادر الطلبات</h2></div>@foreach (var item in Model.ChannelOrders) { <div class="rank-row"><span>@item.Channel</span><strong>@item.Count طلب</strong></div> }@if (Model.ChannelOrders.Count == 0) { <p class="muted">ستظهر المصادر بعد أول طلب.</p> }<div class="panel-note">قيمة طلبات آخر ٧ أيام: <strong>@Model.RevenueThisWeek.ToString("0.00") د.أ</strong></div></section>
+    </div>
+}

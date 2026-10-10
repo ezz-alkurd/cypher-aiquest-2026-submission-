@@ -1,0 +1,8 @@
+.store-assistant{color:#082d42;bottom:calc(18px + var(--footer-overlap,0px));transition:bottom .12s ease-out}
+.assistant-panel{height:min(570px,calc(100dvh - var(--footer-overlap,0px) - 100px))}
+.assistant-toggle,.assistant-panel header,.assistant-form button,.assistant-more{background:#062b40}
+.assistant-bubble{background:#eef8f6}
+.assistant-bubble.user{background:#d7f4ed}
+.assistant-product a{color:#087f83}
+.assistant-panel,.assistant-product{border-color:#d9e9e8}
+button:focus-visible,.assistant-form textarea:focus-visible{outline-color:#23b8ab}

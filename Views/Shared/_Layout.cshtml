@@ -1,0 +1,36 @@
+@inject CypherCommerce.Services.CommerceService Commerce
+@{ var store = await Commerce.GetStoreAsync(); var brandName = store.Name; var basePath = Context.Items["StoreBasePath"] as string ?? ""; }
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · @brandName</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/refresh.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/cypher-theme.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="site-header">
+        <div class="shell header-inner">
+            <a class="brand" href="@(basePath)/shop"><span class="brand-mark"><img src="/images/cypher-logo.png" alt="" /></span><span>@brandName<small>متجر عبر Cypher</small></span></a>
+            <nav class="main-nav" aria-label="القائمة الرئيسية"><a href="@(basePath)/shop">الرئيسية</a><a href="@(basePath)/shop#products">المنتجات</a><a href="@(basePath)/track">تتبع الطلب</a></nav>
+            <a class="cart-link" href="@(basePath)/cart">السلة <span aria-hidden="true">↗</span></a>
+        </div>
+    </header>
+    @if (TempData["Success"] is string success) { <div class="shell alert success cart-feedback" role="status"><span>@success</span><a href="@(basePath)/cart">عرض السلة ←</a></div> }
+    @if (TempData["Error"] is string error) { <div class="shell alert error">@error</div> }
+    <main>@RenderBody()</main>
+    <footer class="site-footer">
+        <div class="shell footer-inner"><strong>@brandName</strong><div><a href="@(basePath)/track">تتبع الطلب</a>
+            @if (!string.IsNullOrWhiteSpace(store.Phone)) { <a href="tel:@store.Phone">@store.Phone</a> }
+            @if (!string.IsNullOrWhiteSpace(store.Address)) { <span>@store.Address</span> }
+        </div><small>© @DateTime.Now.Year</small></div>
+    </footer>
+    @if (store.WebsiteAssistantEnabled && store.StorefrontEnabled && !string.IsNullOrWhiteSpace(basePath))
+    {
+        <partial name="_Assistant" model="store" />
+    }
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

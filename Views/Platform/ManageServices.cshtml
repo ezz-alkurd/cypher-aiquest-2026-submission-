@@ -1,0 +1,24 @@
+@model StoreProfile
+@{ ViewData["Title"] = "إدارة خدمات النشاط"; Layout = "_PlatformLayout";
+   var requests = ViewBag.Requests as List<ServiceChangeRequest> ?? new(); }
+<section class="shell platform-requests">
+    <div class="admin-heading"><div><a class="breadcrumb" href="/platform/operator/businesses">← الأنشطة</a><h1>خدمات @Model.Name</h1><p>يمكنك تعديل الخدمات مباشرة. تفعيل واتساب لا يغني عن ربط الرقم والتحقق منه.</p></div></div>
+    <form class="panel operator-services-form" method="post" action="/platform/operator/businesses/@Model.Id/services">
+        @Html.AntiForgeryToken()
+        <h2>الخدمات المفعلة</h2>
+        <label><input type="checkbox" name="Inventory" value="true" checked="@Model.InventoryEnabled" /> المنتجات والمخزون</label>
+        <label><input type="checkbox" name="WhatsApp" value="true" checked="@Model.WhatsAppEnabled" /> مساعد واتساب</label>
+        <label><input type="checkbox" name="Storefront" value="true" checked="@Model.StorefrontEnabled" /> المتجر الإلكتروني</label>
+        <label><input type="checkbox" name="WebsiteAssistant" value="true" checked="@Model.WebsiteAssistantEnabled" /> مساعد الموقع</label>
+        <small>مساعد الموقع يحتاج المتجر الإلكتروني. إيقاف واتساب يلغي حالة الاتصال المؤكدة ويستلزم إعادة التحقق عند تشغيله مجدداً.</small>
+        <button class="button dark" type="submit">حفظ الخدمات</button>
+    </form>
+    @if (requests.Count > 0)
+    {
+        <section class="panel service-history"><div class="panel-head"><h2>طلبات هذا النشاط</h2><a href="/platform/operator/service-requests">مراجعة الطلبات ←</a></div>
+            <div class="table-scroll"><table><thead><tr><th>الخدمة</th><th>الإجراء</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>
+            @foreach (var request in requests) { <tr><td>@CypherCommerce.Services.BusinessServices.Label(request.ServiceCode)</td><td>@(request.RequestedAction == "Add" ? "إضافة" : "إزالة")</td><td>@(request.Status == "Pending" ? "قيد المراجعة" : request.Status == "Approved" ? "موافق عليه" : "مرفوض")</td><td>@request.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy")</td></tr> }
+            </tbody></table></div>
+        </section>
+    }
+</section>

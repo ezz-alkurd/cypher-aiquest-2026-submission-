@@ -1,0 +1,22 @@
+@model List<StoreProfile>
+@{ ViewData["Title"] = "الأنشطة"; Layout = "_PlatformLayout"; }
+<section class="shell platform-requests">
+    <div class="admin-heading"><div><span class="eyebrow">فريق Cypher</span><h1>الأنشطة المفعلة</h1><p>إدارة الخدمات المفعلة لكل نشاط.</p></div></div>
+    @if (Model.Count == 0) { <div class="empty-state"><h2>لا توجد أنشطة مفعلة بعد</h2></div> }
+    else
+    {
+        <div class="platform-request-grid">
+        @foreach (var store in Model)
+        {
+            <article class="panel operator-business-card">
+                <h2>@store.Name</h2><p>رقم النشاط: @store.Id</p>
+                <div class="service-tags">
+                    @foreach (var service in CypherCommerce.Services.BusinessServices.All)
+                    { <span class="@(CypherCommerce.Services.BusinessServices.IsEnabled(store, service.Code) ? "enabled" : "")">@service.Label</span> }
+                </div>
+                <div class="operator-card-actions"><a class="button dark" href="/platform/operator/businesses/@store.Id/services">إدارة الخدمات ←</a>@if (store.StorefrontEnabled) { <a class="button light" href="/s/@store.Slug" target="_blank">زيارة المتجر ↗</a> }</div>
+            </article>
+        }
+        </div>
+    }
+</section>

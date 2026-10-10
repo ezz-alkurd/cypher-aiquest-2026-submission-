@@ -1,0 +1,84 @@
+@{ var basePath = Context.Items["StoreBasePath"] as string ?? ""; }
+@model StorefrontViewModel
+@{
+    ViewData["Title"] = "الرئيسية";
+    var hasProducts = Model.Products.Count > 0;
+    var hasFilter = !string.IsNullOrWhiteSpace(Model.Search) || !string.IsNullOrWhiteSpace(Model.Category) || Model.SubCategoryId.HasValue;
+}
+
+<section class="store-intro">
+    <div class="shell store-intro-grid">
+        <div class="store-intro-copy">
+            <span class="eyebrow">متجر @Model.Store.Name</span>
+            <h1>@(string.IsNullOrWhiteSpace(Model.Store.Tagline) ? "أهلاً بك في متجرنا" : Model.Store.Tagline)</h1>
+            <p>@(string.IsNullOrWhiteSpace(Model.Store.About) ? "تصفح المنتجات المتاحة واطلب مباشرة من المتجر." : Model.Store.About)</p>
+            @if (hasProducts)
+            {
+                <a class="button dark" href="#products">تصفح المنتجات <span aria-hidden="true">↙</span></a>
+            }
+        </div>
+        <div class="store-intro-art" aria-hidden="true">
+            <div class="art-circle art-circle-one"></div><div class="art-circle art-circle-two"></div>
+            <div class="art-card"><span>✦</span><strong>@Model.Store.Name</strong><small>المتجر الإلكتروني</small></div>
+        </div>
+    </div>
+</section>
+
+<section id="products" class="shell products-section">
+    <div class="section-heading">
+        <div><span class="eyebrow">المنتجات</span><h2>تصفح المتجر</h2></div>
+        @if (hasProducts) { <span class="results-count">@Model.Products.Count منتج</span> }
+    </div>
+    @if (Model.Categories.Count > 0)
+    {
+        <form class="filter-bar" method="get" action="@(basePath)/shop">
+            <input name="q" value="@Model.Search" placeholder="ابحث عن منتج أو رمز..." aria-label="ابحث عن منتج" />
+            <select name="category" aria-label="التصنيف">
+                <option value="">كل التصنيفات</option>
+                @foreach (var category in Model.Categories) { <option value="@category" selected="@(Model.Category == category)">@category</option> }
+            </select>
+            <select name="subcategory" aria-label="القسم الفرعي">
+                <option value="">كل الأقسام</option>
+                @foreach (var sub in Model.SubCategories.Where(x => string.IsNullOrEmpty(Model.Category) || x.ParentCategory.Name == Model.Category))
+                { <option value="@sub.Id" selected="@(Model.SubCategoryId == sub.Id)">@sub.Name</option> }
+            </select>
+            <button class="button dark" type="submit">بحث</button>
+        </form>
+    }
+    @if (hasProducts)
+    {
+        <div class="product-grid">
+            @foreach (var product in Model.Products)
+            {
+                <article class="product-card">
+                    <a class="product-image" href="@(basePath)/products/@product.Id">
+                        <img src="@(product.ImageUrl ?? "/images/placeholder.svg")" alt="@product.Name" />
+                        <span class="product-category">@product.Category</span>
+                    </a>
+                    <div class="product-info">
+                        <h3><a href="@(basePath)/products/@product.Id">@product.Name</a></h3>
+                        @if (!string.IsNullOrWhiteSpace(product.Description)) { <p>@product.Description</p> }
+                        <div class="product-bottom">
+                            <div><strong>@product.Price.ToString("0.00") د.أ</strong><small>@(product.StockQuantity > 0 ? "متوفر" : "نفد المخزون")</small></div>
+                            <form method="post" action="@(basePath)/cart/add">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="productId" value="@product.Id" />
+                                <input type="hidden" name="returnTo" value="@(Context.Request.Path + Context.Request.QueryString)" />
+                                <button type="submit" disabled="@(product.StockQuantity == 0)" aria-label="إضافة @product.Name إلى السلة">+</button>
+                            </form>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state storefront-empty">
+            <span class="empty-icon" aria-hidden="true">⌕</span>
+            <h3>@(hasFilter ? "لم نجد منتجات مطابقة" : "المتجر قيد التجهيز")</h3>
+            <p>@(hasFilter ? "جرّب البحث بكلمة أخرى أو اعرض جميع المنتجات." : "ستظهر المنتجات هنا بمجرد إضافتها إلى المتجر.")</p>
+            @if (hasFilter) { <a class="button light" href="@(basePath)/shop">عرض جميع المنتجات</a> }
+        </div>
+    }
+</section>

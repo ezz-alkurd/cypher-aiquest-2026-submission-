@@ -1,0 +1,175 @@
+{
+  "id": "o5qKQfIIHj9eotRK",
+  "name": "Cypher TOOL - Website Catalog",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "storeId",
+              "type": "number"
+            },
+            {
+              "name": "sessionId",
+              "type": "string"
+            },
+            {
+              "name": "conversationId",
+              "type": "string"
+            },
+            {
+              "name": "leaseToken",
+              "type": "string"
+            },
+            {
+              "name": "messageId",
+              "type": "string"
+            },
+            {
+              "name": "mode",
+              "type": "string"
+            },
+            {
+              "name": "query",
+              "type": "string"
+            },
+            {
+              "name": "page",
+              "type": "number"
+            },
+            {
+              "name": "pageSize",
+              "type": "number"
+            },
+            {
+              "name": "availableOnly",
+              "type": "boolean"
+            }
+          ]
+        },
+        "inputSource": "workflowInputs"
+      },
+      "id": "d48cdcc4-626b-473a-8bb8-b41f3df8ef17",
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "EXEC dbo.CypherBot @operation=N'website.catalog', @input=$1;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($(\"Input\").first().json)] }}"
+        }
+      },
+      "id": "ff71c703-a023-4617-b12c-ccd63c0e8fbb",
+      "name": "SQL Read public website catalog",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.2,
+      "position": [
+        384,
+        336
+      ],
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "onError": "continueErrorOutput",
+      "notes": "website.catalog: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
+      "credentials": {
+        "microsoftSql": {
+          "id": "wYmJA7GzXMqRNPUE",
+          "name": "Cypher SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Pure domain helpers. Network and SQL operations belong to their n8n nodes.\nconst fail = (code) => { throw new Error(code); };\nconst insist = (condition, code) => { if (!condition) fail(code); };\nconst text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';\nconst integer = (value, min = 0, max = 1000000000) => {\n  insist(Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max, 'invalid_integer');\n  return Number(value);\n};\nconst arabic = value => text(value).normalize('NFKC').replace(/[\\u064b-\\u065f\\u0670\\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/\\s+/g, ' ');\nconst confirmation = value => arabic(value) === 'تاكيد';\nconst money = cents => (integer(cents) / 100).toFixed(2);\n\n\nfunction payload(rows) {\n  insist(Array.isArray(rows) && rows.length === 1, 'sql_contract_requires_one_payload_row');\n  const raw = rows[0].payload;\n  const result = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  insist(result && typeof result === 'object' && !Array.isArray(result), 'sql_payload_missing');\n  return result;\n}\n\nfunction websiteCatalog(input, result) {\n  websiteScope(result,input);\n  insist(result.success===true && Array.isArray(result.products),'catalog_unavailable');\n  insist(['search','categories'].includes(input.mode),'invalid_catalog_mode');\n  // The SQL contract returns the current store's complete public catalog, not a pre-truncated search.\n  insist(result.catalogComplete===true && result.products.length<=5000,'incomplete_catalog');\n  const products=result.products.filter(p=>p.isActive===true).map(p=>{\n    insist(p.storeId===input.storeId,'cross_store_product');\n    insist(typeof p.name==='string' && p.name.trim().length>0,'product_name_missing');\n    return {...p,productId:integer(p.productId,1),priceCents:integer(p.priceCents),stockQuantity:integer(p.stockQuantity)};\n  });\n  const scope={storeId:input.storeId,sessionId:input.sessionId,conversationId:input.conversationId,messageId:input.messageId};\n  if(input.mode==='categories') return {success:true,kind:'website_catalog',scope,mode:'categories',categories:[...new Set(products.map(p=>text(p.category,100)).filter(Boolean))].sort()};\n  const query=arabic(input.query);\n  insist(query && query.length<=200,'empty_catalog_query');\n  const tokens=query.split(' ').filter(Boolean);\n  const aliases=p=>Array.isArray(p.aliases)?p.aliases:String(p.aliases||'').split(',');\n  const searchable=p=>arabic([p.name,p.sku,p.category,p.description,...aliases(p)].filter(Boolean).join(' '));\n  const matched=products.filter(p=>tokens.every(token=>searchable(p).includes(token)));\n  const available=matched.filter(p=>p.stockQuantity>0);\n  const visible=input.availableOnly!==false?available:matched;\n  const page=integer(input.page||1,1,5000),pageSize=integer(input.pageSize||12,1,20);\n  const ordered=visible.sort((a,b)=>arabic(a.name).localeCompare(arabic(b.name))||a.productId-b.productId);\n  const cards=ordered.slice((page-1)*pageSize,page*pageSize).map(p=>({productId:p.productId,name:text(p.name,200),\n    category:text(p.category,100)||null,description:text(p.description,300)||null,unit:text(p.unit,50)||null,\n    priceCents:p.priceCents,unitPrice:money(p.priceCents),currency:'JOD',available:p.stockQuantity>0,\n    imageUrl:publicUrl(p.imageUrl,true),productUrl:publicUrl(p.productUrl)}));\n  return {success:true,kind:'website_catalog',scope,mode:'search',query:text(input.query,200),availableOnly:input.availableOnly!==false,\n    status:matched.length===0?'not_found':available.length===0?'out_of_stock':'found',\n    totalCount:visible.length,matchedCount:matched.length,availableCount:available.length,page,pageSize,\n    hasMore:page*pageSize<visible.length,products:cards};\n}\n\nfunction websiteScope(result, input) {\n  verifyScope(result, input);\n  for (const key of ['conversationId','messageId','leaseToken']) insist(result[key] === input[key], 'website_scope_mismatch');\n  insist(result.channel === 'website', 'wrong_channel');\n  return result;\n}\n\nfunction verifyScope(result, input) {\n  insist(result.storeId === input.storeId, 'store_scope_mismatch');\n  if (input.sessionId) insist(result.sessionId === input.sessionId, 'session_scope_mismatch');\n  return result;\n}\n\nfunction publicUrl(value, image=false) {\n  if(typeof value!=='string' || value.length>2000 || /[\\s\\\\<>\\u0000-\\u001f]/.test(value)) return null;\n  if(value.startsWith('/') && !value.startsWith('//') && !/%(?:2f|5c|00|0a|0d)/i.test(value)) return value;\n  if(image && /^https:\\/\\/[A-Za-z0-9.-]+(?::\\d+)?(?:\\/[^\\s]*)?$/.test(value)) return value;\n  return null;\n}\nreturn [{json:websiteCatalog($(\"Input\").first().json,payload($input.all().map(i=>i.json)))}];"
+      },
+      "id": "cbb790b2-0d14-414b-a606-4919bf2f146a",
+      "name": "Return catalog page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        336
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{success:false,code:'integration_unavailable',message:'تعذر التحقق من الأصناف حالياً.'}}];"
+      },
+      "id": "a41803e1-7ece-4b93-bdbe-c41cb28a5212",
+      "name": "Catalog unavailable",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "SQL Read public website catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Read public website catalog": {
+      "main": [
+        [
+          {
+            "node": "Return catalog page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Catalog unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return catalog page": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Catalog unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 90,
+    "availableInMCP": false
+  },
+  "pinData": {},
+  "description": "Read-only public browsing lists every matching variant through bounded pages, with authoritative prices, availability, images and product links."
+}

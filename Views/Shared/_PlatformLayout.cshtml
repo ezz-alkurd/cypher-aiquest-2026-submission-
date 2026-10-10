@@ -1,0 +1,37 @@
+@{ var isOperatorPage = Context.Request.Path.StartsWithSegments("/platform/operator"); }
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · Cypher</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/refresh.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/cypher-theme.css" asp-append-version="true" />
+</head>
+<body class="platform-body @(isOperatorPage ? "operator-body" : "")">
+    @if (isOperatorPage)
+    {
+        @if (User.IsInRole("PlatformOperator"))
+        {
+            <header class="operator-header"><div class="shell operator-header-inner">
+                <a class="platform-brand" href="/platform/operator/requests"><span class="brand-mark"><img src="/images/cypher-logo.png" alt="" /></span><strong>Cypher</strong></a>
+                <nav aria-label="إدارة المنصة"><a href="/platform/operator/requests">طلبات الانضمام</a><a href="/platform/operator/service-requests">طلبات الخدمات</a><a href="/platform/operator/businesses">الأنشطة</a></nav>
+                <form method="post" action="/platform/operator/logout">@Html.AntiForgeryToken()<button class="button light" type="submit">خروج</button></form>
+            </div></header>
+        }
+    }
+    else
+    {
+        <header class="platform-header"><div class="shell platform-header-inner">
+            <a class="platform-brand" href="/platform"><span class="brand-mark"><img src="/images/cypher-logo.png" alt="" /></span><strong>Cypher</strong></a>
+            <nav aria-label="القائمة الرئيسية"><a href="/platform#services">الخدمات</a><a href="/admin/login">دخول صاحب النشاط</a><a class="button dark" href="/platform/request">اطلب الانضمام</a></nav>
+        </div></header>
+    }
+    @if (TempData["Success"] is string success) { <div class="shell alert success" role="status">@success</div> }
+    @if (TempData["Error"] is string error) { <div class="shell alert error" role="alert">@error</div> }
+    <main>@RenderBody()</main>
+    @if (!isOperatorPage)
+    { <footer class="platform-footer"><div class="shell"><strong>Cypher</strong><span>أدوات عملك في مكان واحد</span><small>© @DateTime.Now.Year</small></div></footer> }
+</body>
+</html>
