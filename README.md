@@ -9,11 +9,12 @@ Cypher helps small businesses manage products, stock, orders, and customer conve
 | Open the platform | [Cypher](https://ezzeldeenalkurd-001-site2.ftempurl.com/) — explore services and the join request |
 | Shop as a customer | [Demo storefront](https://ezzeldeenalkurd-001-site2.ftempurl.com/s/shadi-test) — browse products, add several items, then check out with test contact details |
 | Ask the AI | Use the assistant button on the demo storefront to ask about products, prices, or availability |
+| Order through WhatsApp | [Chat with Shadi's demo store](https://wa.me/962797815644) (`0797815644`) — ask about a product, choose a quantity, and explicitly confirm the order |
 | Manage the business | [Owner sign-in](https://ezzeldeenalkurd-001-site2.ftempurl.com/admin/login) — username `shadi-test`, password `ShadiDemo!2026` |
-| Inspect the order | In the [owner dashboard](https://ezzeldeenalkurd-001-site2.ftempurl.com/admin), open Orders to review the new request and update its status; inspect Products, Inventory, Categories, Statistics, and Services |
+| Inspect the order | In the [owner dashboard](https://ezzeldeenalkurd-001-site2.ftempurl.com/admin), open Orders to review website or WhatsApp requests and update their status; inspect Products, Inventory, Categories, Statistics, and Services |
 | Track as a customer | Use the order number from checkout at [Track order](https://ezzeldeenalkurd-001-site2.ftempurl.com/s/shadi-test/track) |
 
-Please use fictional customer details. The demo owner account can change the demo business's data. Platform operator actions use a separate role. WhatsApp ordering requires a connected, verified phone; its workflow source is included for review.
+Please use fictional customer details. The demo owner account can change the demo business's data. Platform operator actions use a separate role.
 
 ## How it works
 
