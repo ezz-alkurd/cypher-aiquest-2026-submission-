@@ -20,6 +20,16 @@ Please use fictional customer details. The demo owner account can change the dem
 
 ASP.NET Core 8 MVC/Razor and Web API serve the portal, storefront, and dashboard. EF Core 9 stores business-scoped data in SQL Server. Checkout validates stock in a transaction; chat orders enter an owner-review state. The AI integration uses n8n, OpenAI, and SQL-backed tools to read current products and store facts. WhatsApp connects through Evolution API. See [`automation/`](automation/) for workflow exports, prompts, and their source generators; [`Database/005_bot_runtime.sql`](Database/005_bot_runtime.sql) and [`Database/006_bot_contracts.sql`](Database/006_bot_contracts.sql) define the bot's SQL boundary.
 
-## Run the code locally
+## Run the inspection demo from a fresh clone
 
-Install the .NET 8 SDK and SQL Server LocalDB, open [`CypherCommerce.sln`](CypherCommerce.sln) in Visual Studio, then select **LocalDB (Development)**. For an empty local database, run `dotnet run --project CypherCommerce.csproj --launch-profile "LocalDB (Development)" -- --initialize-database` once, followed by `dotnet run --project CypherCommerce.csproj --launch-profile "LocalDB (Development)"`. No business or customer data is seeded automatically. To run AI locally, apply the two bot SQL scripts, import the n8n exports, configure your own SQL/OpenAI/Evolution credentials, and set the app's `Automation` webhook URL and key settings. Secrets and deployment settings are intentionally absent from this repository.
+On the team's Windows laptop, install the .NET 8 SDK and use its existing private .NET User Secrets for the hosted SQL password and automation webhooks. Then run:
+
+```powershell
+git clone https://github.com/ezz-alkurd/cypher-aiquest-2026-submission-.git
+cd cypher-aiquest-2026-submission-
+dotnet run --launch-profile "Hosted demo (this laptop)"
+```
+
+Open the local [platform](http://localhost:5280/), [demo storefront](http://localhost:5280/s/shadi-test), [owner sign-in](http://localhost:5280/admin/login), [owner dashboard](http://localhost:5280/admin), or [order tracking](http://localhost:5280/s/shadi-test/track). The WhatsApp number remains the [same live demo chat](https://wa.me/962797815644). The hosted demo needs internet access and the team's existing private secrets; they are not committed.
+
+For a separate database, install SQL Server LocalDB and run `dotnet run --launch-profile "LocalDB (Development)" -- --initialize-database` once, then `dotnet run --launch-profile "LocalDB (Development)"`. This creates schema only. Local AI additionally needs the bot SQL scripts, n8n workflows, and private SQL/OpenAI/Evolution credentials. No business or customer data is seeded automatically.

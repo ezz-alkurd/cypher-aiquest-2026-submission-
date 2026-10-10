@@ -1,6 +1,13 @@
 ﻿{
   "$schema": "http://json.schemastore.org/launchsettings.json",
   "profiles": {
+    "Hosted demo (this laptop)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5280",
+      "environmentVariables": { "ASPNETCORE_ENVIRONMENT": "HostedLocal" }
+    },
     "LocalDB (Development)": {
       "commandName": "Project",
       "dotnetRunMessages": true,
