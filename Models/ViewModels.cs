@@ -46,7 +46,6 @@ public class CheckoutViewModel
 public class OrderTrackingViewModel
 {
     [Required(ErrorMessage = "رقم الطلب مطلوب"), MaxLength(24)] public string OrderNumber { get; set; } = "";
-    [Required(ErrorMessage = "رقم الهاتف مطلوب"), MaxLength(40)] public string Phone { get; set; } = "";
     public ShopOrder? Order { get; set; }
 }
 

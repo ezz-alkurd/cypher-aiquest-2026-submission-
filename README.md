@@ -12,7 +12,7 @@ Cypher helps small businesses manage products, stock, orders, and customer conve
 | Order through WhatsApp | [Chat with Shadi's demo store](https://wa.me/962797815644) (`0797815644`) — ask about a product, choose a quantity, and explicitly confirm the order |
 | Manage the business | [Owner sign-in](https://ezzeldeenalkurd-001-site2.ftempurl.com/admin/login) — username `shadi-test`, password `ShadiDemo!2026` |
 | Inspect the order | In the [owner dashboard](https://ezzeldeenalkurd-001-site2.ftempurl.com/admin), open Orders to review website or WhatsApp requests and update their status; inspect Products, Inventory, Categories, Statistics, and Services |
-| Track as a customer | Use the order number from checkout at [Track order](https://ezzeldeenalkurd-001-site2.ftempurl.com/s/shadi-test/track) |
+| Track as a customer | Enter only the order code from website checkout or WhatsApp at [Track order](https://ezzeldeenalkurd-001-site2.ftempurl.com/s/shadi-test/track) |
 
 Please use fictional customer details. The demo owner account can change the demo business's data. Platform operator actions use a separate role.
 

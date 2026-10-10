@@ -4,12 +4,11 @@
 <div class="shell page-section tracking-page">
     <div class="eyebrow">طلباتك</div>
     <h1 class="page-title">تتبع الطلب</h1>
-    <p class="muted">أدخل رقم الطلب ورقم الهاتف الذي استخدمته عند الشراء.</p>
+    <p class="muted">أدخل رقم الطلب الذي وصلك بعد الشراء أو عبر واتساب.</p>
     <form class="form-card tracking-form" method="post" action="@(basePath)/track">
         @Html.AntiForgeryToken()
         <div asp-validation-summary="All" class="validation"></div>
         <label>رقم الطلب <input name="OrderNumber" value="@Model.OrderNumber" maxlength="24" required autocomplete="off" placeholder="CY-..." /></label>
-        <label>رقم الهاتف <input name="Phone" value="@Model.Phone" type="tel" maxlength="40" required autocomplete="tel" /></label>
         <button class="button dark" type="submit">اعرض حالة الطلب ←</button>
     </form>
     @if (Model.Order is { } order)
@@ -18,6 +17,8 @@
             <div class="tracking-result-head"><div><span class="eyebrow">@order.OrderNumber</span><h2>@OrderStatusDisplay.Label(order.Status)</h2><p>تاريخ الطلب: @order.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p></div><span class="badge large">@OrderStatusDisplay.Label(order.Status)</span></div>
             @if (order.Status == OrderStatus.Cancelled)
             { <p class="tracking-cancelled">تم إلغاء هذا الطلب. يمكنك التواصل مع المتجر إذا احتجت إلى مساعدة.</p> }
+            else if (order.Status == OrderStatus.NeedsReview)
+            { <p class="muted">وصل طلبك إلى المتجر وهو بانتظار مراجعة صاحب النشاط وتأكيده.</p> }
             else
             {
                 <ol class="tracking-steps">

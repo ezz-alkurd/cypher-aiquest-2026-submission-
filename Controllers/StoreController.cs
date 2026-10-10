@@ -164,13 +164,12 @@ public class StoreController(CommerceDbContext db, CommerceService commerce, Bus
     [HttpPost("/s/{slug}/track")]
     public async Task<IActionResult> Track(OrderTrackingViewModel input)
     {
-        input.OrderNumber = input.OrderNumber.Trim();
-        input.Phone = input.Phone.Trim();
+        input.OrderNumber = input.OrderNumber?.Trim().ToUpperInvariant() ?? "";
         if (!ModelState.IsValid) return View(input);
         var order = await db.Orders.AsNoTracking().FirstOrDefaultAsync(x =>
-            x.OrderNumber == input.OrderNumber && x.Phone == input.Phone && x.Status != OrderStatus.NeedsReview);
+            x.OrderNumber == input.OrderNumber);
         if (order is null)
-            ModelState.AddModelError("", "لم نجد طلباً مطابقاً. تحقق من رقم الطلب ورقم الهاتف.");
+            ModelState.AddModelError("", "لم نجد طلباً مطابقاً. تحقق من رقم الطلب.");
         else input.Order = order;
         return View(input);
     }
