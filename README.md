@@ -22,7 +22,7 @@ ASP.NET Core 8 MVC/Razor and Web API serve the portal, storefront, and dashboard
 
 ## Run the inspection demo from a fresh clone
 
-On the team's Windows laptop, install the .NET 8 SDK and use its existing private .NET User Secrets for the hosted SQL password and automation webhooks. Then run:
+On the team's Windows laptop, install the .NET 8 SDK (8.0.419 or a compatible later 8.0 feature band) and use the same Windows account that holds the existing private .NET User Secrets for the hosted SQL password and automation webhooks. Then run:
 
 ```powershell
 git clone https://github.com/ezz-alkurd/cypher-aiquest-2026-submission-.git
@@ -30,6 +30,6 @@ cd cypher-aiquest-2026-submission-
 dotnet run --launch-profile "Hosted demo (this laptop)"
 ```
 
-Open the local [platform](http://localhost:5280/), [demo storefront](http://localhost:5280/s/shadi-test), [owner sign-in](http://localhost:5280/admin/login), [owner dashboard](http://localhost:5280/admin), or [order tracking](http://localhost:5280/s/shadi-test/track). The WhatsApp number remains the [same live demo chat](https://wa.me/962797815644). The hosted demo needs internet access and the team's existing private secrets; they are not committed.
+Open the local [platform](http://localhost:5280/), [demo storefront](http://localhost:5280/s/shadi-test), [owner sign-in](http://localhost:5280/admin/login), [owner dashboard](http://localhost:5280/admin), [orders](http://localhost:5280/admin/orders), [products](http://localhost:5280/admin/products), [inventory](http://localhost:5280/admin/inventory), [services](http://localhost:5280/admin/services), or [order tracking](http://localhost:5280/s/shadi-test/track). The WhatsApp number remains the [same live demo chat](https://wa.me/962797815644). The hosted demo needs internet access and the team's existing private secrets; they are not committed.
 
 For a separate database, install SQL Server LocalDB and run `dotnet run --launch-profile "LocalDB (Development)" -- --initialize-database` once, then `dotnet run --launch-profile "LocalDB (Development)"`. This creates schema only. Local AI additionally needs the bot SQL scripts, n8n workflows, and private SQL/OpenAI/Evolution credentials. No business or customer data is seeded automatically.
