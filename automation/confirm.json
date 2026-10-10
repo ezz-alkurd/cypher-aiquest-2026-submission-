@@ -53,9 +53,7 @@
         352
       ],
       "alwaysOutputData": true,
-      "notesInFlow": true,
       "onError": "continueErrorOutput",
-      "notes": "confirm.read: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
       "credentials": {
         "microsoftSql": {
           "id": "wYmJA7GzXMqRNPUE",
@@ -125,9 +123,7 @@
         272
       ],
       "alwaysOutputData": true,
-      "notesInFlow": true,
       "onError": "continueErrorOutput",
-      "notes": "confirm.commit: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
       "credentials": {
         "microsoftSql": {
           "id": "wYmJA7GzXMqRNPUE",

@@ -23,8 +23,7 @@
           "id": "WD02bALcTPrtEwNq",
           "name": "iCare Evolution Inbound"
         }
-      },
-      "notes": "Backend-to-n8n only. Owner authorization is checked again by SQL. Allocate a dedicated website Header Auth credential before production; existing inbound credential is a draft binding only."
+      }
     },
     {
       "parameters": {
@@ -56,9 +55,7 @@
         352
       ],
       "alwaysOutputData": true,
-      "notesInFlow": true,
       "onError": "continueErrorOutput",
-      "notes": "onboarding.authorize: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
       "credentials": {
         "microsoftSql": {
           "id": "wYmJA7GzXMqRNPUE",
@@ -296,9 +293,7 @@
         112
       ],
       "alwaysOutputData": true,
-      "notesInFlow": true,
       "onError": "continueErrorOutput",
-      "notes": "onboarding.pending: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
       "credentials": {
         "microsoftSql": {
           "id": "wYmJA7GzXMqRNPUE",
@@ -668,9 +663,7 @@
         432
       ],
       "alwaysOutputData": true,
-      "notesInFlow": true,
       "onError": "continueErrorOutput",
-      "notes": "onboarding.ready: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
       "credentials": {
         "microsoftSql": {
           "id": "wYmJA7GzXMqRNPUE",

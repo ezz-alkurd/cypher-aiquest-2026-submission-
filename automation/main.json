@@ -237,8 +237,7 @@
       "position": [
         1360,
         352
-      ],
-      "notes": "Acknowledge only after SQL has durably recorded the message and acquired its lease. Recovery of interrupted accepted turns is the SQL integration responsibility."
+      ]
     },
     {
       "parameters": {

@@ -25,8 +25,7 @@
           "id": "WD02bALcTPrtEwNq",
           "name": "iCare Evolution Inbound"
         }
-      },
-      "notes": "Backend-to-n8n only. This existing credential is a draft binding; assign a dedicated website Header Auth credential before publishing. Never give the browser this credential."
+      }
     },
     {
       "parameters": {
@@ -552,9 +551,7 @@
         256
       ],
       "alwaysOutputData": true,
-      "notesInFlow": true,
       "onError": "continueErrorOutput",
-      "notes": "website.finish: parameterized JSON boundary dbo.CypherBot. Install Database/005_bot_runtime.sql and 006_bot_contracts.sql first; SQL-INTEGRATION.md. Dedicated Cypher SQL credential; keep inactive until integration tests pass.",
       "credentials": {
         "microsoftSql": {
           "id": "wYmJA7GzXMqRNPUE",
